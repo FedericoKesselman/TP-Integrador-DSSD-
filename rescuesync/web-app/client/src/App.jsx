@@ -1,5 +1,12 @@
+import AppLayout from './components/layout/AppLayout.jsx';
+import EmergencyFormPage from './pages/EmergencyFormPage.jsx';
+
 function App() {
-  return <h1>RescueSync</h1>;
+  return (
+    <AppLayout roleLabel="Operador municipal">
+      <EmergencyFormPage />
+    </AppLayout>
+  );
 }
 
 export default App;
