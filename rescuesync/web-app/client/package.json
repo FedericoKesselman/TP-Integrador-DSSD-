@@ -12,10 +12,17 @@
     "format": "prettier --write ."
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.10",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.48.0",
+    "prop-types": "^15.8.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^7.18.4"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^4.3.1",
     "eslint": "^8.57.0",
     "eslint-config-airbnb": "^19.0.4",
@@ -25,6 +32,7 @@
     "eslint-plugin-react": "^7.35.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "prettier": "^3.3.3",
+    "tailwindcss": "^4.3.3",
     "vite": "^5.4.0"
   }
 }

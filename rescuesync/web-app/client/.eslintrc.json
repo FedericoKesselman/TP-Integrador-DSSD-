@@ -23,13 +23,19 @@
     "react/react-in-jsx-scope": "off",
     "import/prefer-default-export": "off",
     "import/extensions": ["error", "ignorePackages"],
-    "no-console": ["warn", { "allow": ["warn", "error"] }]
+    "no-console": ["warn", { "allow": ["warn", "error"] }],
+    "react/require-default-props": [
+      "error",
+      { "forbidDefaultForRequired": true, "functions": "defaultArguments" }
+    ],
+    "jsx-a11y/label-has-associated-control": ["error", { "assert": "either" }]
   },
   "overrides": [
     {
       "files": ["vite.config.js"],
       "rules": {
-        "import/no-extraneous-dependencies": "off"
+        "import/no-extraneous-dependencies": "off",
+        "import/no-unresolved": ["error", { "ignore": ["^@tailwindcss/"] }]
       }
     }
   ]
