@@ -4,6 +4,15 @@ Monorepo del TP integrador de DSSD (grupo de 5 integrantes). RescueSync es un
 sistema de coordinación de operaciones de rescate compuesto por 3 sistemas
 activos y 1 pieza reservada para una entrega futura.
 
+## Roadmap de la etapa actual
+
+El plan de implementación de la Entrega 2 (fases, orden de trabajo y la
+aclaración del profesor sobre autenticación vía el login service de Bonita)
+está documentado en [`rescuesync/roadmapfase2.md`](./rescuesync/roadmapfase2.md).
+Leer ese archivo antes de tocar autenticación, roles, o el orden en que se
+implementan emergencias/lotes/ofertas/Bonita — tiene el contexto y las
+decisiones ya tomadas para esta etapa.
+
 ## Sistemas del proyecto
 
 ### 1. `web-app/` — Aplicación web principal
