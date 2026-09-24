@@ -1,41 +1,60 @@
+import {
+  DESCRIPTION_MAX_LENGTH,
+  DESCRIPTION_MIN_LENGTH,
+  EMERGENCY_TYPE_VALUES,
+  SEVERITY_VALUES,
+} from '../../../../shared/emergency-validation.js';
 import { toLocalInputValue } from '../../lib/dates.js';
 
-// Enums del dominio de emergencias. Contrato documentado en rescuesync/docs/api-contracts.md;
-// si cambia algún valor, actualizar también ese documento.
+// Reexportadas para que el resto del cliente siga importándolas desde acá
+// (un solo lugar para los largos de la descripción, definidos en
+// web-app/shared/emergency-validation.js).
+export { DESCRIPTION_MAX_LENGTH, DESCRIPTION_MIN_LENGTH };
 
-export const EMERGENCY_TYPES = [
-  { value: 'inundacion', label: 'Inundación' },
-  { value: 'incendio', label: 'Incendio' },
-  { value: 'terremoto', label: 'Terremoto' },
-  { value: 'otro', label: 'Otro' },
-];
+// Copy de UI (etiquetas, colores, descripciones) para cada valor válido.
+// El *conjunto* de valores válidos viene de shared/emergency-validation.js;
+// acá solo se define cómo se ve cada uno. Si falta la entrada de un valor
+// nuevo, el campo correspondiente queda undefined a propósito, para que se
+// note en la UI en vez de fallar en silencio.
+const EMERGENCY_TYPE_LABELS = {
+  inundacion: 'Inundación',
+  incendio: 'Incendio',
+  terremoto: 'Terremoto',
+  otro: 'Otro',
+};
 
-export const SEVERITY_LEVELS = [
-  {
-    value: 'baja',
+export const EMERGENCY_TYPES = EMERGENCY_TYPE_VALUES.map((value) => ({
+  value,
+  label: EMERGENCY_TYPE_LABELS[value],
+}));
+
+const SEVERITY_COPY = {
+  baja: {
     label: 'Baja',
     description: 'Daños menores, sin riesgo para las personas',
     color: 'var(--color-sev-baja)',
   },
-  {
-    value: 'media',
+  media: {
     label: 'Media',
     description: 'Afecta viviendas o servicios básicos',
     color: 'var(--color-sev-media)',
   },
-  {
-    value: 'alta',
+  alta: {
     label: 'Alta',
     description: 'Hay personas heridas o evacuadas',
     color: 'var(--color-sev-alta)',
   },
-  {
-    value: 'critica',
+  critica: {
     label: 'Crítica',
     description: 'Riesgo de vida inminente',
     color: 'var(--color-sev-critica)',
   },
-];
+};
+
+export const SEVERITY_LEVELS = SEVERITY_VALUES.map((value) => ({
+  value,
+  ...SEVERITY_COPY[value],
+}));
 
 // Ids de Georef (códigos INDEC). El centroide de Tierra del Fuego se ajustó a la Isla Grande:
 // el de Georef incluye la Antártida y cae a -82° de latitud.
@@ -74,9 +93,6 @@ export const PROVINCES = [
   },
   { id: '90', nombre: 'Tucumán', centroide: { lat: -26.9483, lon: -65.3648 } },
 ];
-
-export const DESCRIPTION_MIN_LENGTH = 20;
-export const DESCRIPTION_MAX_LENGTH = 2000;
 
 // Secciones del formulario y sus campos obligatorios (typeOther solo si el tipo es "otro").
 export const FORM_SECTIONS = [

@@ -24,6 +24,15 @@ docker compose up --build
 Confirmar en los logs: `Postgres connection established` y
 `RescueSync server listening on port 4000`.
 
+En otra terminal, aplicar las migraciones (crea las tablas; hace falta
+cada vez que haya migraciones nuevas):
+
+```bash
+cd rescuesync/web-app/server
+npm install
+npm run migrate:up
+```
+
 **2. Cliente (Vite, en otra terminal)**
 
 ```bash
@@ -51,6 +60,17 @@ comentadas ahí mismo.
 `web-app/.env` (al lado de `docker-compose.yml`) o exportándolas antes de
 `docker compose up` — el contenedor de Postgres no lee
 `web-app/server/.env`, solo el contenedor `server` lo hace.
+
+## Migraciones (Postgres)
+
+`migrate:up` ya está en el paso 1. Otros comandos, desde `web-app/server`:
+
+```bash
+npm run migrate:create -- nombre-migracion    # crea una migración nueva
+npm run migrate:down                          # revierte la última migración
+```
+
+Detalle en [`web-app/server/MIGRATIONS.md`](./web-app/server/MIGRATIONS.md).
 
 ## Apagar
 

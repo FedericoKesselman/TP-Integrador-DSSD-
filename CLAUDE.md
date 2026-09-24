@@ -58,6 +58,7 @@ rescuesync/
 ├── web-app/
 │   ├── client/          # React + Vite
 │   ├── server/          # Node + Express
+│   ├── shared/          # Validaciones/constantes compartidas client ↔ server
 │   └── docker-compose.yml
 ├── sistema-nacional/     # API JWT (pendiente)
 ├── dashboard/            # Entrega 4/5 (stack a definir)
@@ -98,9 +99,9 @@ Alcance sugerido = nombre del sistema (`client`, `server`,
 ## Evitar código duplicado entre `client` y `server`
 
 - Las reglas de validación de datos (formatos, rangos, campos requeridos)
-  deben definirse **una sola vez** y reutilizarse; si con el tiempo se
-  detecta la misma validación escrita en ambos lados, extraerla a un paquete
-  compartido (ej: `web-app/shared/`) en lugar de mantener dos copias.
+  se definen **una sola vez** en `web-app/shared/` y se reutilizan desde
+  ambos lados (ver `web-app/shared/emergency-validation.js`) — no se
+  reescriben ni en `client` ni en `server`.
 - Los tipos/contratos de datos que viajan entre `client` y `server` (forma
   de los objetos de la API) se documentan en un solo lugar (ej:
   `docs/api-contracts.md` o un paquete compartido de tipos) y ambos lados
@@ -131,7 +132,21 @@ Alcance sugerido = nombre del sistema (`client`, `server`,
 
 ## Alcance actual
 
-Este repositorio contiene únicamente la base del proyecto (estructura,
-configuración de lint/formato, variables de entorno y orquestación con
-Docker). Todavía **no** hay lógica de negocio (formularios, endpoints,
-modelos de datos) implementada.
+Hay lógica de negocio real implementada, aunque el backend todavía no
+expone endpoints propios:
+
+- **Cliente**: formulario completo de alta de emergencia
+  (`EmergencyFormPage` y componentes asociados), con mapa, validación,
+  vista previa y confirmación. Corre en modo mock (`localStorage`) porque
+  el server todavía no tiene rutas.
+- **Server**: conexión a Postgres armada, pero sin endpoints propios
+  todavía (eso es la Fase 2 del roadmap).
+- **Base de datos**: esquema completo aplicado vía migraciones
+  (`emergencies`, `lotes`, `ongs`, `ofertas`, `oferta_ongs`,
+  `oferta_lotes`, `oferta_historial`).
+- **`web-app/shared/`**: reglas de validación del dominio "emergencias",
+  compartidas entre client y server.
+- **Routing**: esqueleto de rutas en el cliente con React Router.
+
+Ver [`rescuesync/roadmapfase2.md`](./rescuesync/roadmapfase2.md) para el
+estado fase por fase y qué sigue.

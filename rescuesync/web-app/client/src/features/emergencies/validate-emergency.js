@@ -1,34 +1,25 @@
 import {
-  CABA_ID,
+  AFFECTED_ZONE_MAX_LENGTH,
+  AFFECTED_ZONE_MIN_LENGTH,
+  coordinateError,
   DESCRIPTION_MAX_LENGTH,
   DESCRIPTION_MIN_LENGTH,
-  EMERGENCY_TYPES,
-  FORM_SECTIONS,
-  SEVERITY_LEVELS,
-} from './emergency-constants.js';
+  EMERGENCY_TYPE_VALUES,
+  isBlank,
+  LATITUDE_LIMIT,
+  lengthError,
+  LONGITUDE_LIMIT,
+  PHONE_PATTERN,
+  SEVERITY_VALUES,
+} from '../../../../shared/emergency-validation.js';
+import { CABA_ID, FORM_SECTIONS } from './emergency-constants.js';
 
-const PHONE_PATTERN = /^\+?[\d\s()-]{6,20}$/;
-
-function isBlank(value) {
-  return String(value ?? '').trim() === '';
-}
-
-// Los mensajes nombran el campo porque también se listan en el resumen de errores.
-function lengthError(value, min, max, subject) {
-  const { length } = value.trim();
-  if (length < min) return `${subject} tiene que tener al menos ${min} caracteres.`;
-  if (length > max) return `${subject} tiene que tener como máximo ${max} caracteres.`;
-  return undefined;
-}
-
-function coordinateError(value, limit, subject) {
-  if (isBlank(value)) return undefined;
-  const number = Number(value);
-  if (Number.isNaN(number) || number < -limit || number > limit) {
-    return `${subject} tiene que ser un número entre -${limit} y ${limit}.`;
-  }
-  return undefined;
-}
+// Valida el ESTADO DEL FORMULARIO (objetos de provincia/municipio, inputs de
+// texto para lat/lon, datetime-local) — no el payload que viaja a la API,
+// que valida web-app/shared/emergency-validation.js#validateEmergencyPayload
+// (usado por el server). Acá reutilizamos sus mismas constantes y helpers
+// de bajo nivel para no repetir largos, patrones ni rangos por partida
+// doble.
 
 export function isFieldRequired(field, values) {
   return field !== 'typeOther' || values.type === 'otro';
@@ -38,13 +29,13 @@ export function isFieldRequired(field, values) {
 export function validateEmergency(values, now = new Date()) {
   const errors = {};
 
-  if (!EMERGENCY_TYPES.some((type) => type.value === values.type)) {
+  if (!EMERGENCY_TYPE_VALUES.includes(values.type)) {
     errors.type = 'Elegí el tipo de emergencia.';
   }
   if (values.type === 'otro' && isBlank(values.typeOther)) {
     errors.typeOther = 'Contá qué tipo de emergencia es.';
   }
-  if (!SEVERITY_LEVELS.some((level) => level.value === values.severity)) {
+  if (!SEVERITY_VALUES.includes(values.severity)) {
     errors.severity = 'Elegí el nivel de gravedad.';
   }
 
@@ -56,10 +47,15 @@ export function validateEmergency(values, now = new Date()) {
   if (isBlank(values.affectedZone)) {
     errors.affectedZone = 'Describí la zona afectada.';
   } else {
-    errors.affectedZone = lengthError(values.affectedZone, 3, 200, 'La zona afectada');
+    errors.affectedZone = lengthError(
+      values.affectedZone,
+      AFFECTED_ZONE_MIN_LENGTH,
+      AFFECTED_ZONE_MAX_LENGTH,
+      'La zona afectada',
+    );
   }
-  errors.latitude = coordinateError(values.latitude, 90, 'La latitud');
-  errors.longitude = coordinateError(values.longitude, 180, 'La longitud');
+  errors.latitude = coordinateError(values.latitude, LATITUDE_LIMIT, 'La latitud');
+  errors.longitude = coordinateError(values.longitude, LONGITUDE_LIMIT, 'La longitud');
   if (isBlank(values.latitude) !== isBlank(values.longitude)) {
     const missing = isBlank(values.latitude) ? 'latitude' : 'longitude';
     errors[missing] = 'Completá latitud y longitud, o dejá las dos vacías.';

@@ -26,7 +26,7 @@ volver a validar.
 | `severity` | string (enum `Severity`) | sí | |
 | `provinceId` | string | sí | código INDEC de la provincia según [Georef](https://apis.datos.gob.ar/georef/api/provincias) (ej. `"06"`) |
 | `province` | string | sí | nombre oficial de la provincia (Georef) |
-| `municipalityId` | string | null | sí |\| null | sí | código de municipio de Georef (ej. `"060441"`); en CABA es una comuna. `null` solo si la lista de Georef no estuvo disponible y el nombre se cargó a mano |
+| `municipalityId` | string \| null | sí | código de municipio de Georef (ej. `"060441"`); en CABA es una comuna. `null` solo si la lista de Georef no estuvo disponible y el nombre se cargó a mano |
 | `municipality` | string | sí | nombre oficial del municipio o comuna |
 | `affectedZone` | string | sí | 3–200 caracteres |
 | `latitude` | number \| null | no | −90..90; si viene, `longitude` también. Punto exacto marcado en el mapa o tomado del GPS |
@@ -78,7 +78,7 @@ todavía no se pudo iniciar).
 ```json
 {
   "message": "Datos inválidos",
-  "errors": { "severity": "Seleccioná el nivel de gravedad." }
+  "errors": { "severity": "Elegí el nivel de gravedad." }
 }
 ```
 
@@ -89,11 +89,199 @@ también `{ "message": "..." }`.
 
 - `EmergencyType`: `inundacion`, `incendio`, `terremoto`, `otro`
 - `Severity`: `baja`, `media`, `alta`, `critica`
-- `EmergencyStatus`: `registrada` (valores siguientes a definir con el flujo
-  de Bonita: en revisión, convocatoria abierta, etc.)
+- `EmergencyStatus`: `registrada` (alta hecha) → `convocatoria_abierta`
+  (el Coordinador publicó los lotes) → `convocatoria_cerrada` (venció el
+  temporizador de Bonita). Más valores se van a sumar cuando se integre
+  la validación/adjudicación con el Sistema Nacional (Entrega 3).
 
 Definidos en el cliente en
-`client/src/features/emergencies/emergency-constants.js`.
+`client/src/features/emergencies/emergency-constants.js` y como `CHECK`
+constraints en `server/migrations/*_create-core-schema.sql`.
+
+## Lotes
+
+Corresponden a la tabla `lotes` (ver migración del esquema). Los crea el
+**Centro Coordinador Regional** al desglosar una emergencia (ej: 5
+Paramédicos, 1000 raciones de alimento).
+
+### `POST /api/emergencies/:emergencyId/lotes`
+
+Alta de uno o varios lotes para una emergencia, en un solo pedido (el
+Coordinador arma el desglose completo antes de publicar la convocatoria).
+
+**Request body**
+
+```json
+{
+  "lotes": [
+    { "resourceType": "Paramédicos", "unit": "personas", "quantityRequested": 5, "notes": null },
+    { "resourceType": "Raciones de alimento", "unit": "raciones", "quantityRequested": 1000, "notes": "aptas para celiacos si es posible" }
+  ]
+}
+```
+
+| Campo (de cada lote) | Tipo | Requerido | Reglas |
+|---|---|---|---|
+| `resourceType` | string | sí | texto libre (tipo de recurso) |
+| `unit` | string \| null | no | unidad del recurso ("personas", "raciones", "unidades") |
+| `quantityRequested` | integer | sí | > 0 |
+| `notes` | string \| null | no | |
+
+**Respuesta `201 Created`**
+
+```json
+{
+  "emergencyId": "uuid",
+  "lotes": [
+    { "id": "uuid", "resourceType": "Paramédicos", "unit": "personas", "quantityRequested": 5, "notes": null, "createdAt": "2026-09-24T14:00:00.000Z" }
+  ]
+}
+```
+
+### `GET /api/emergencies/:emergencyId/lotes`
+
+Lista los lotes de una emergencia (mismo shape que el array `lotes` de
+arriba). Lo usan tanto la pantalla del Coordinador como, más adelante, la
+del Sistema Nacional.
+
+### `POST /api/emergencies/:emergencyId/convocatoria`
+
+Publica oficialmente la convocatoria: pasa `emergencies.status` de
+`registrada` a `convocatoria_abierta`. Requiere que la emergencia tenga al
+menos un lote cargado. Esta acción es la que, en la Fase 5 del roadmap, va a
+disparar también la llamada para **completar la tarea correspondiente en
+Bonita** (usando el login service, ver `roadmapfase2.md`).
+
+**Respuesta `200 OK`**
+
+```json
+{ "emergencyId": "uuid", "status": "convocatoria_abierta" }
+```
+
+**Respuesta `409 Conflict`** si la emergencia no tiene lotes o ya tiene la
+convocatoria abierta/cerrada:
+
+```json
+{ "message": "La emergencia no tiene lotes cargados." }
+```
+
+## Ofertas
+
+Corresponden a las tablas `ofertas`, `oferta_ongs` (consorcio) y
+`oferta_lotes` (qué cubre cada oferta y con qué cantidad). Las cargan las
+**ONGs**, mientras la convocatoria está abierta.
+
+### `POST /api/emergencies/:emergencyId/ofertas`
+
+Alta de una oferta. `ongIds` acepta uno o varios ids para modelar consorcios
+(varias ONGs asociándose en una misma oferta).
+
+**Request body**
+
+```json
+{
+  "ongIds": ["uuid-ong-1", "uuid-ong-2"],
+  "observations": "Podemos cubrir también transporte si hace falta.",
+  "items": [
+    { "loteId": "uuid-lote-1", "quantityOffered": 3, "notes": null }
+  ]
+}
+```
+
+| Campo | Tipo | Requerido | Reglas |
+|---|---|---|---|
+| `ongIds` | string[] (uuid) | sí | al menos 1 id de ONG existente |
+| `observations` | string \| null | no | |
+| `items` | array | sí | al menos 1 item |
+| `items[].loteId` | string (uuid) | sí | debe pertenecer a la misma emergencia |
+| `items[].quantityOffered` | integer | sí | > 0 (puede ser menor a lo pedido: oferta parcial) |
+| `items[].notes` | string \| null | no | |
+
+**Respuesta `201 Created`**
+
+```json
+{
+  "id": "uuid",
+  "emergencyId": "uuid",
+  "status": "registrada",
+  "observations": "...",
+  "ongs": [{ "id": "uuid-ong-1", "name": "Cruz Roja Argentina", "role": null }],
+  "items": [{ "id": "uuid", "loteId": "uuid-lote-1", "quantityOffered": 3, "notes": null }],
+  "createdAt": "2026-09-24T14:10:00.000Z",
+  "updatedAt": "2026-09-24T14:10:00.000Z"
+}
+```
+
+### `PUT /api/ofertas/:id`
+
+Edita/actualiza una oferta **mientras la convocatoria de su emergencia sigue
+abierta** (`emergencies.status = 'convocatoria_abierta'`); fuera de esa
+ventana debe devolver `409 Conflict`. Mismo body que el alta (`observations`,
+`items`; `ongIds` también editable).
+
+Cada edición **debe** guardar una fila nueva en `oferta_historial` (snapshot
+completo de la oferta antes del cambio, `version` incremental) — es el
+requisito de trazabilidad del enunciado. `changed_by` guarda el id/usuario de
+Bonita que hizo el cambio (texto libre, sin FK).
+
+**Respuesta `200 OK`**: mismo shape que el alta.
+
+### `GET /api/emergencies/:emergencyId/ofertas`
+
+Lista las ofertas de una emergencia (mismo shape que la respuesta del alta,
+en array). La usa el Centro Coordinador para revisarlas.
+
+### `GET /api/ofertas/:id/historial`
+
+Devuelve las versiones guardadas de una oferta, más vieja primero:
+
+```json
+[
+  { "version": 1, "snapshot": { "...": "..." }, "changedBy": "bonita-user-42", "changedAt": "2026-09-24T14:10:00.000Z" }
+]
+```
+
+### `GET /api/emergencies/:emergencyId/ofertas/consolidado`
+
+**Este es el endpoint que consulta Bonita**, según la directiva de
+integración del enunciado ("Mecanismo de Consulta y Comunicación"): cuando
+vence el temporizador de la convocatoria, un conector de Bonita hace un `GET`
+acá para pedir el listado consolidado de ofertas, y recién con esa respuesta
+Bonita llama a la API del Sistema Nacional. Se documenta desde ahora para que
+el formato no lo termine inventando cada uno por su lado, aunque su uso real
+arranca en una fase posterior del roadmap (Fase 5 en adelante / Entrega 3).
+
+**Respuesta `200 OK`**
+
+```json
+{
+  "emergencyId": "uuid",
+  "lotes": [
+    { "id": "uuid-lote-1", "resourceType": "Paramédicos", "unit": "personas", "quantityRequested": 5 }
+  ],
+  "ofertas": [
+    {
+      "id": "uuid",
+      "status": "registrada",
+      "ongs": [{ "id": "uuid-ong-1", "name": "Cruz Roja Argentina", "role": null }],
+      "items": [{ "loteId": "uuid-lote-1", "quantityOffered": 3 }],
+      "observations": null,
+      "createdAt": "2026-09-24T14:10:00.000Z",
+      "updatedAt": "2026-09-24T14:10:00.000Z"
+    }
+  ]
+}
+```
+
+**Pendiente de definir** (no bloquea la Fase 0): cómo se autentica esta
+llamada de Bonita hacia el server — a diferencia del login de usuarios (que
+va contra el login service de Bonita), acá es Bonita llamando **hacia**
+nuestro server. Podría resolverse con un secreto compartido simple. Definir
+en la Fase 5 del roadmap.
+
+### Enums
+
+- `OfertaStatus`: `registrada`, `retirada`
 
 ## Datos geográficos
 

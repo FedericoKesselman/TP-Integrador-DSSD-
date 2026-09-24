@@ -33,27 +33,27 @@ el **login service que provee el motor de Bonita**
 - El JWT del **Sistema Nacional** (Entrega 3) es un sistema aparte, sin
   relación con este login de usuarios de la app.
 
-## Fase 0 — Cimientos técnicos compartidos
+## Fase 0 — Cimientos técnicos compartidos ✅ Implementada
 
 *Bloquea todo lo demás. Conviene resolverla en conjunto o entre 1-2 personas
 antes de repartir el resto del roadmap, para que nadie construya sobre una
 base que después cambia.*
 
-1. Elegir herramienta de migraciones para Postgres (ej. `node-pg-migrate` o
+1. [x] Elegir herramienta de migraciones para Postgres (ej. `node-pg-migrate` o
    Knex) e instalarla en `web-app/server`.
-2. Diseñar el esquema mínimo de tablas: `emergencies`, `lotes`, `ofertas`.
+2. [x] Diseñar el esquema mínimo de tablas: `emergencies`, `lotes`, `ofertas`.
    **Sin tabla de usuarios/roles propia** — si hace falta guardar algo
    extra de un usuario (ONG a la que pertenece, teléfono, etc.), se agrega
    después como extensión referenciando el id de usuario de Bonita, no
    antes.
-3. Agregar React Router al cliente (`web-app/client`) y armar el esqueleto
+3. [x] Agregar React Router al cliente (`web-app/client`) y armar el esqueleto
    de rutas (todavía sin protección por rol propia, ya que el rol lo
    resuelve Bonita).
-4. Extraer a una carpeta compartida (`web-app/shared/`) las reglas de
+4. [x] Extraer a una carpeta compartida (`web-app/shared/`) las reglas de
    validación que hoy solo viven en el cliente
    (`client/src/features/emergencies/validate-emergency.js`), para que el
    server las reutilice en vez de reescribirlas.
-5. Ampliar `docs/api-contracts.md` con las formas de datos de lotes,
+5. [x] Ampliar `docs/api-contracts.md` con las formas de datos de lotes,
    ofertas y el endpoint que Bonita va a consultar (dejarlo escrito antes
    de programar, para que no se inventen formatos distintos entre
    integrantes).
