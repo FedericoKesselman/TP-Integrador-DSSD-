@@ -60,7 +60,7 @@ base que después cambia.*
 
 ## Fase 1 — Organización de Bonita e integración mínima de login
 
-6. Definir en la organización de Bonita los usuarios, roles y grupos
+6. [x] Definir en la organización de Bonita los usuarios, roles y grupos
    necesarios para la Etapa 2 (Operador Municipal, Centro Coordinador,
    ONG — como mínimo los que participan del flujo de esta entrega).
 7. Desde `web-app/server`, implementar la llamada al login service de
