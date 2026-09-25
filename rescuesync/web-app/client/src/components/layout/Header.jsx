@@ -1,7 +1,10 @@
-import { Siren, UserRound } from 'lucide-react';
+import { LogOut, Siren, UserRound } from 'lucide-react';
 import PropTypes from 'prop-types';
+import { useState } from 'react';
 
-function Header({ roleLabel }) {
+function Header({ userName, onLogout }) {
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
+
   return (
     <header className="relative bg-navy text-white shadow-[0_1px_0_rgb(255_255_255/0.06)_inset]">
       <div className="flex items-center justify-between gap-4 px-3 py-2 sm:px-4 lg:px-6">
@@ -18,18 +21,51 @@ function Header({ roleLabel }) {
             </span>
           </p>
         </div>
-        <p className="flex shrink-0 items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm ring-1 ring-white/15">
-          <UserRound className="h-4 w-4 text-celeste" aria-hidden="true" />
-          <span className="sr-only">Rol: </span>
-          {roleLabel}
-        </p>
+
+        <div className="flex shrink-0 items-center gap-2">
+          <p className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm ring-1 ring-white/15">
+            <UserRound className="h-4 w-4 text-celeste" aria-hidden="true" />
+            <span className="sr-only">Usuario: </span>
+            {userName}
+          </p>
+
+          {confirmingLogout ? (
+            <div className="flex items-center gap-1.5 text-sm">
+              <span className="hidden text-white/80 sm:inline">¿Cerrar sesión?</span>
+              <button
+                type="button"
+                onClick={onLogout}
+                className="rounded-full bg-white px-3 py-1 font-semibold text-navy hover:bg-white/90"
+              >
+                Sí, salir
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingLogout(false)}
+                className="rounded-full px-3 py-1 text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingLogout(true)}
+              className="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Salir
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );
 }
 
 Header.propTypes = {
-  roleLabel: PropTypes.string.isRequired,
+  userName: PropTypes.string.isRequired,
+  onLogout: PropTypes.func.isRequired,
 };
 
 export default Header;

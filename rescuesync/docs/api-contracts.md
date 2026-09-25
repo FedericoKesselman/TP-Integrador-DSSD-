@@ -4,6 +4,47 @@ Fuente única de la forma de los datos que viajan entre `web-app/client` y
 `web-app/server`. Si cambia un campo o un enum, actualizar este documento y
 los dos lados.
 
+## Autenticación
+
+Los usuarios se validan contra la organización de Bonita (login service).
+El server guarda la sesión de Bonita del lado del server y el navegador
+recibe solo la cookie de sesión de la app (`connect.sid`, httpOnly), que
+manda automáticamente en cada pedido. Implementado en
+`server/src/routes/auth-routes.js` y `server/src/bonita/bonita-client.js`;
+el cliente los usa desde `client/src/services/auth-service.js`.
+
+### `POST /api/auth/login`
+
+**Request body**
+
+```json
+{ "username": "OperadorM", "password": "..." }
+```
+
+| Respuesta | Cuándo | Body |
+|---|---|---|
+| `200 OK` + `Set-Cookie: connect.sid` | Bonita aceptó las credenciales | `{ "username": "OperadorM" }` |
+| `400 Bad Request` | falta `username` o `password` | `{ "message": "Usuario y contraseña son obligatorios." }` |
+| `401 Unauthorized` | Bonita rechazó las credenciales | `{ "message": "Usuario o contraseña incorrectos." }` |
+| `502 Bad Gateway` | Bonita no respondió (Studio cerrado, URL mal) | `{ "message": "No se pudo conectar con Bonita." }` |
+
+### `GET /api/auth/me`
+
+Indica si hay sesión iniciada. El cliente lo llama al arrancar (así la
+sesión sobrevive a un F5).
+
+| Respuesta | Cuándo | Body |
+|---|---|---|
+| `200 OK` | hay sesión | `{ "username": "OperadorM" }` |
+| `401 Unauthorized` | no hay sesión o expiró | `{ "message": "No hay sesión iniciada." }` |
+
+### `POST /api/auth/logout`
+
+Cierra la sesión en Bonita (`/bonita/logoutservice`) y destruye la sesión de
+la app. Si Bonita no responde, igual cierra la sesión de la app.
+
+**Respuesta `204 No Content`** (borra la cookie `connect.sid`).
+
 ## Emergencias
 
 ### `POST /api/emergencies`
