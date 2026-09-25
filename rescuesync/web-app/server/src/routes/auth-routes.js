@@ -33,8 +33,6 @@ router.get('/me', (req, res) => {
   return res.json({ username: req.session.username });
 });
 
-export default router;
-
 router.post('/logout', async (req, res) => {
   if (req.session.bonita) {
     await logout(req.session.bonita).catch((error) => console.error(error));
@@ -45,3 +43,5 @@ router.post('/logout', async (req, res) => {
     res.status(204).end();
   });
 });
+
+export default router;

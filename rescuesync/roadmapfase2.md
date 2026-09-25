@@ -58,20 +58,36 @@ base que después cambia.*
    de programar, para que no se inventen formatos distintos entre
    integrantes).
 
-## Fase 1 — Organización de Bonita e integración mínima de login
+## Fase 1 — Organización de Bonita e integración mínima de login ✅ Implementada
 
 6. [x] Definir en la organización de Bonita los usuarios, roles y grupos
    necesarios para la Etapa 2 (Operador Municipal, Centro Coordinador,
    ONG — como mínimo los que participan del flujo de esta entrega).
-7. Desde `web-app/server`, implementar la llamada al login service de
+7. [x] Desde `web-app/server`, implementar la llamada al login service de
    Bonita (`POST /bonita/loginservice`) para autenticar al usuario y
    obtener la sesión/cookie que Bonita necesita para las siguientes
    llamadas a su API.
-8. Definir cómo esa sesión de Bonita se propaga o se representa hacia el
+8. [x] Definir cómo esa sesión de Bonita se propaga o se representa hacia el
    cliente (por ejemplo, guardándola server-side y exponiendo al cliente
    solo lo mínimo necesario para saber que está logueado).
-9. Pantalla de login mínima en el cliente — alcanza con lo necesario para
+9. [x] Pantalla de login mínima en el cliente — alcanza con lo necesario para
    autenticar contra Bonita, sin RBAC visual complejo todavía.
+
+**Cómo quedó:**
+- Organización RescueSync en Bonita (en el repo de Bonita): roles
+  `operador_municipal`, `coordinador_regional`, `representante_ong`,
+  `auditor`, `sistema_nacional`; grupos por entidad (municipios, centro
+  coordinador, ONGs, dirección). Actores del proceso mapeados a los roles.
+- Server: `bonita/bonita-client.js` (login/logout contra Bonita) y
+  `routes/auth-routes.js` (`/api/auth/login`, `/me`, `/logout`). La sesión
+  de Bonita se guarda server-side con `express-session`; el cliente solo
+  recibe la cookie `connect.sid`.
+- Cliente: `LoginPage`, rutas protegidas en `App.jsx` (sin sesión todo
+  redirige a `/login`), usuario y botón "Salir" (con confirmación) en el
+  `Header`.
+- Contratos en `docs/api-contracts.md`; cómo levantarlo en el `README.md`.
+- Pendiente para más adelante: el rol del usuario (membresías de Bonita)
+  todavía no se consulta; hará falta para el RBAC de las próximas entregas.
 
 ## Fase 2 — Emergencias: conectar lo ya construido
 
