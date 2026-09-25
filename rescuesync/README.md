@@ -63,9 +63,8 @@ login contra el login service de Bonita, así que para usarla hace falta:
 2. `SESSION_SECRET` definido en `web-app/server/.env` (ya viene en el
    `.env.example`).
 
-Usuarios de prueba: los de la organización RescueSync (uno por perfil:
-Operador Municipal, Coordinador Regional, ONGs, Dirección). Usuario y
-contraseña de cada uno en la pestaña *Usuarios* de la organización en Studio.
+Usuarios de prueba (uno por perfil) y sus contraseñas: ver
+[`bonita/README.md`](./bonita/README.md#usuarios-de-prueba).
 
 Cómo funciona:
 

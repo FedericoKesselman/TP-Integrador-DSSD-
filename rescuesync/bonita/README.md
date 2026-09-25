@@ -17,3 +17,19 @@ directamente desde Bonita Studio:
    *Autenticación*, un usuario de la organización RescueSync.
 4. Con Studio abierto, Bonita responde en `http://localhost:8080/bonita`.
    La app web lo usa para el login (ver `../README.md`, "Login con Bonita").
+
+## Usuarios de prueba
+
+Todos con contraseña `123123123`. Son usuarios de la Bonita local de cada
+uno, solo para desarrollo y demo.
+
+| Usuario (login) | Rol | Grupo |
+|---|---|---|
+| `OperadorM` | `operador_municipal` | `/rescuesync/municipios/la-plata` |
+| `CoordinadorR` | `coordinador_regional` | `/rescuesync/centro-coordinador` |
+| `RescatistasUnidos` | `representante_ong` | `/rescuesync/ongs/rescatistas-unidos` |
+| `Manos Solidarias` | `representante_ong` | `/rescuesync/ongs/manos-solidarias` |
+| `Dirección` | `auditor` | `/rescuesync/direccion` |
+
+Para el login se usa la columna **Usuario** tal cual (respetando
+mayúsculas, espacios y tildes), no el nombre visible que muestra Studio.
