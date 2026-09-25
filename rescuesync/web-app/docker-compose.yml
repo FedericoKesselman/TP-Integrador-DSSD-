@@ -11,6 +11,8 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
+    environment:
+      BONITA_API_URL: http://host.docker.internal:8080/bonita
 
   postgres:
     image: postgres:16-alpine
