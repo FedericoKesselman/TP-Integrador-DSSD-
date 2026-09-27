@@ -132,21 +132,30 @@ Alcance sugerido = nombre del sistema (`client`, `server`,
 
 ## Alcance actual
 
-Hay lógica de negocio real implementada, aunque el backend todavía no
-expone endpoints propios:
+Hay lógica de negocio real implementada, con el backend ya exponiendo
+endpoints propios de emergencias (Fase 2 del roadmap, probada end-to-end):
 
 - **Cliente**: formulario completo de alta de emergencia
   (`EmergencyFormPage` y componentes asociados), con mapa, validación,
-  vista previa y confirmación. Corre en modo mock (`localStorage`) porque
-  el server todavía no tiene rutas.
-- **Server**: conexión a Postgres armada, pero sin endpoints propios
-  todavía (eso es la Fase 2 del roadmap).
+  vista previa y confirmación. Corre contra el backend real
+  (`VITE_USE_MOCK_API=false`); el modo mock (`localStorage`) sigue
+  disponible para trabajar sin Bonita/Postgres levantados.
+- **Server**: autenticación contra Bonita (`/api/auth/*`, Fase 1) y
+  endpoints de emergencias (`POST` y `GET /api/emergencies`, Fase 2) con
+  persistencia real en Postgres y revalidación server-side reutilizando
+  `web-app/shared/`.
 - **Base de datos**: esquema completo aplicado vía migraciones
   (`emergencies`, `lotes`, `ongs`, `ofertas`, `oferta_ongs`,
-  `oferta_lotes`, `oferta_historial`).
+  `oferta_lotes`, `oferta_historial`). `emergencies` ya tiene datos reales
+  cargados desde el formulario.
 - **`web-app/shared/`**: reglas de validación del dominio "emergencias",
   compartidas entre client y server.
-- **Routing**: esqueleto de rutas en el cliente con React Router.
+- **Routing**: esqueleto de rutas en el cliente con React Router, protegido
+  por sesión de Bonita.
+- **`docker-compose.yml`**: monta `web-app/shared/` en el contenedor del
+  server y pisa `DATABASE_URL` para que apunte al servicio `postgres` de
+  la red de Compose (no a `localhost`) — dos ajustes necesarios recién
+  detectados al probar la Fase 2 end-to-end por primera vez.
 
 Ver [`rescuesync/roadmapfase2.md`](./rescuesync/roadmapfase2.md) para el
 estado fase por fase y qué sigue.

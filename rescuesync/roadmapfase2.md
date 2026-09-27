@@ -89,17 +89,57 @@ base que después cambia.*
 - Pendiente para más adelante: el rol del usuario (membresías de Bonita)
   todavía no se consulta; hará falta para el RBAC de las próximas entregas.
 
-## Fase 2 — Emergencias: conectar lo ya construido
+## Fase 2 — Emergencias: conectar lo ya construido ✅ Implementada
 
 *El formulario de alta ya existe en el cliente (`EmergencyFormPage.jsx` y
 componentes asociados); falta el otro lado.*
 
-10. Implementar `POST /api/emergencies` en `web-app/server` (persistencia
+10. [x] Implementar `POST /api/emergencies` en `web-app/server` (persistencia
     en Postgres + validación server-side reutilizando lo de la Fase 0).
-11. Apagar el modo mock (`VITE_USE_MOCK_API=false` en `client/.env`) y
+11. [x] Apagar el modo mock (`VITE_USE_MOCK_API=false` en `client/.env`) y
     probar el flujo real end-to-end.
-12. Endpoint de listado (`GET /api/emergencies`) para que el Centro
+12. [x] Endpoint de listado (`GET /api/emergencies`) para que el Centro
     Coordinador pueda verlas — necesario para la Fase 3.
+
+**Cómo quedó:**
+- Server: `emergencies/emergencies-repository.js` (única capa que sabe de
+  SQL para `emergencies`, con el mapeo camelCase ↔ snake_case) y
+  `routes/emergency-routes.js` (`POST /api/emergencies`, `GET
+  /api/emergencies`), montado en `index.js`. El `POST` reutiliza
+  `validateEmergencyPayload` de `web-app/shared/` (Fase 0) para revalidar
+  server-side lo que el cliente ya validó.
+- Cliente: `client/.env` con `VITE_USE_MOCK_API=false` — el formulario ya
+  pega contra el backend real (`emergency-service.js` no necesitó cambios,
+  ya estaba preparado para ambos modos).
+- Contrato: se agregó `GET /api/emergencies` a `docs/api-contracts.md`
+  (el `POST` ya estaba documentado desde la Fase 0).
+- Probado end-to-end: alta desde el formulario real (con sesión de Bonita
+  vía `OperadorM`), fila verificada en Postgres, `GET /api/emergencies`
+  devolviendo el listado, y `POST` con payload incompleto devolviendo
+  `400` con los `errors` esperados.
+- **Dos bugs de infraestructura (no del código de esta fase) aparecieron
+  recién ahora, porque eran la primera vez que el server dentro de Docker
+  ejecutaba código que toca `web-app/shared/` y la base real:**
+  1. `web-app/shared/` nunca estaba montada en el contenedor del server
+     (el `docker-compose.yml` solo montaba `./server:/app`), así que
+     `validate-emergency.js` no podía resolver
+     `../../shared/emergency-validation.js` y el server no arrancaba
+     (`ERR_MODULE_NOT_FOUND`). Arreglado agregando el volumen
+     `./shared:/shared:ro`.
+  2. `DATABASE_URL` (heredada de `server/.env`) apuntaba a `localhost`,
+     que dentro del contenedor del server es el propio contenedor, no el
+     de Postgres — el `POST` fallaba siempre con `ECONNREFUSED
+     127.0.0.1:5432`. Arreglado agregando una pisada de `DATABASE_URL` en
+     el servicio `server` del `docker-compose.yml` apuntando a
+     `postgres:5432` (nombre del servicio en la red de Compose), mismo
+     patrón que ya se usaba para `BONITA_API_URL` con
+     `host.docker.internal`.
+  Ambos bugs eran latentes desde la Fase 0 (nadie había levantado un
+  endpoint real que tocara `shared/` + Postgres desde dentro de Docker
+  hasta esta fase) y quedan resueltos en `web-app/docker-compose.yml`
+  para todo el equipo.
+- Pendiente para más adelante: `bonitaCaseId` queda `null` a propósito —
+  se completa en la Fase 5.
 
 ## Fase 3 — Lotes (Centro Coordinador Regional)
 

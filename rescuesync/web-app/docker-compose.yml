@@ -11,8 +11,19 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
+      # web-app/shared/ no forma parte del build context (./server), así
+      # que hace falta montarla aparte para que `validate-emergency.js`
+      # pueda resolver `../../shared/emergency-validation.js` dentro del
+      # contenedor (ahí queda como /shared, sibling de /app).
+      - ./shared:/shared:ro
     environment:
       BONITA_API_URL: http://host.docker.internal:8080/bonita
+      # Dentro de la red de Docker Compose, Postgres se resuelve por el
+      # nombre del servicio ("postgres"), no por "localhost" (eso es lo
+      # que queda en server/.env, para cuando se corre algo fuera de
+      # Docker, como las migraciones desde la terminal). Sin esta línea
+      # el server intenta conectarse a sí mismo y falla con ECONNREFUSED.
+      DATABASE_URL: postgresql://${DB_USER:-rescuesync}:${DB_PASSWORD:-changeme}@postgres:5432/${DB_NAME:-rescuesync}
 
   postgres:
     image: postgres:16-alpine

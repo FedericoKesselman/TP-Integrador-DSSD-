@@ -139,6 +139,42 @@ Definidos en el cliente en
 `client/src/features/emergencies/emergency-constants.js` y como `CHECK`
 constraints en `server/migrations/*_create-core-schema.sql`.
 
+### `GET /api/emergencies`
+
+Listado completo de emergencias registradas, para el Centro Coordinador
+Regional (lo empieza a consumir la pantalla de la Fase 3). Sin paginación ni
+filtros por ahora — se agregan si hacen falta cuando exista esa pantalla.
+
+**Respuesta `200 OK`**: array ordenado por `createdAt` descendente (la más
+reciente primero), cada elemento con el mismo shape que la respuesta de
+`POST /api/emergencies`:
+
+```json
+[
+  {
+    "id": "uuid",
+    "type": "inundacion",
+    "typeOther": null,
+    "severity": "alta",
+    "provinceId": "06",
+    "province": "Buenos Aires",
+    "municipalityId": "060441",
+    "municipality": "La Plata",
+    "affectedZone": "Barrios Tolosa y Ringuelet, márgenes del arroyo El Gato",
+    "latitude": -34.9214,
+    "longitude": -57.9544,
+    "occurredAt": "2026-09-24T13:30:00.000Z",
+    "estimatedAffectedPeople": 350,
+    "description": "Desborde del arroyo tras 180 mm de lluvia en 6 horas. Viviendas anegadas.",
+    "contactName": "María Gómez",
+    "contactPhone": "+54 221 555-1234",
+    "status": "registrada",
+    "bonitaCaseId": null,
+    "createdAt": "2026-09-24T13:35:12.000Z"
+  }
+]
+```
+
 ## Lotes
 
 Corresponden a la tabla `lotes` (ver migración del esquema). Los crea el

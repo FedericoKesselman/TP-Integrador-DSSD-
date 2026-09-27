@@ -5,6 +5,7 @@ import session from 'express-session';
 
 import pool from './db.js';
 import authRoutes from './routes/auth-routes.js';
+import emergencyRoutes from './routes/emergency-routes.js';
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -14,6 +15,7 @@ app.use(express.json());
 app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUninitialized: false }));
 
 app.use('/api/auth', authRoutes); // "Toda petición que empiece con /api/auth, mandala a este router".
+app.use('/api/emergencies', emergencyRoutes);
 
 app.listen(port, () => {
   console.log(`RescueSync server listening on port ${port}`);
