@@ -1,7 +1,11 @@
 services:
   server:
     build:
-      context: ./server
+      # Contexto = web-app/ (no ./server) para que el Dockerfile pueda
+      # copiar también web-app/shared/ dentro de la imagen — ver el
+      # comentario en server/Dockerfile.
+      context: .
+      dockerfile: server/Dockerfile
     env_file:
       - ./server/.env
     ports:
@@ -11,10 +15,10 @@ services:
     volumes:
       - ./server:/app
       - /app/node_modules
-      # web-app/shared/ no forma parte del build context (./server), así
-      # que hace falta montarla aparte para que `validate-emergency.js`
-      # pueda resolver `../../shared/emergency-validation.js` dentro del
-      # contenedor (ahí queda como /shared, sibling de /app).
+      # La imagen ya trae web-app/shared/ copiada (ver Dockerfile); este
+      # bind mount es solo para desarrollo, así un cambio en shared/ se ve
+      # al instante sin rebuildear la imagen (mismo motivo que ./server:/app
+      # de arriba).
       - ./shared:/shared:ro
     environment:
       BONITA_API_URL: http://host.docker.internal:8080/bonita

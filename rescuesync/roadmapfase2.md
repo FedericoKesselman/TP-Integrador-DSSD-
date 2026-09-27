@@ -120,12 +120,21 @@ componentes asociados); falta el otro lado.*
 - **Dos bugs de infraestructura (no del código de esta fase) aparecieron
   recién ahora, porque eran la primera vez que el server dentro de Docker
   ejecutaba código que toca `web-app/shared/` y la base real:**
-  1. `web-app/shared/` nunca estaba montada en el contenedor del server
-     (el `docker-compose.yml` solo montaba `./server:/app`), así que
+  1. `web-app/shared/` nunca estaba disponible dentro del contenedor del
+     server (el `Dockerfile` solo copiaba `./server`, y el
+     `docker-compose.yml` solo montaba `./server:/app`), así que
      `validate-emergency.js` no podía resolver
      `../../shared/emergency-validation.js` y el server no arrancaba
-     (`ERR_MODULE_NOT_FOUND`). Arreglado agregando el volumen
-     `./shared:/shared:ro`.
+     (`ERR_MODULE_NOT_FOUND`). Se arregló de raíz: el build context de
+     `server` pasó a ser `web-app/` (no `web-app/server/`) y el
+     `Dockerfile` ahora copia `server/` y `shared/` explícitamente dentro
+     de la imagen (`COPY shared/ /shared/`), en vez de depender de un
+     volumen de desarrollo. Verificado buildeando la imagen y corriéndola
+     **sin ningún volumen montado** (`docker run --rm <imagen> node -e
+     "console.log(require('fs').existsSync('/shared/emergency-validation.js'))"`
+     → `true`). El bind mount `./shared:/shared:ro` se mantiene solo para
+     hot-reload en desarrollo (ver comentarios en `docker-compose.yml` y
+     `server/Dockerfile`), ya no para que la imagen funcione.
   2. `DATABASE_URL` (heredada de `server/.env`) apuntaba a `localhost`,
      que dentro del contenedor del server es el propio contenedor, no el
      de Postgres — el `POST` fallaba siempre con `ECONNREFUSED

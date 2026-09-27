@@ -1,0 +1,10 @@
+# El build context del server ahora es web-app/ (ver docker-compose.yml),
+# que también incluye client/ y su node_modules. El Dockerfile del server
+# solo copia server/ y shared/ explícitamente, pero sin esto Docker igual
+# subiría todo lo demás al daemon antes de buildear.
+**/node_modules
+**/.git
+**/dist
+**/.env
+**/.env.local
+client/
