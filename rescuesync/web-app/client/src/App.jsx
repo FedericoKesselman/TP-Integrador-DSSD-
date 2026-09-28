@@ -2,9 +2,13 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 
 import AppLayout from './components/layout/AppLayout.jsx';
+import EmergenciesListPage from './pages/EmergenciesListPage.jsx';
 import EmergencyFormPage from './pages/EmergencyFormPage.jsx';
+import EmergencyLotesPage from './pages/EmergencyLotesPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import { getCurrentUser, logout } from './services/auth-service.js';
+
+import { isMunicipalOperator } from './lib/auth-roles.js';
 
 // Usuarios y roles viven en la organización de Bonita (ver roadmapfase2.md).
 // Al arrancar se consulta /api/auth/me: sin sesión, todas las rutas llevan a /login.
@@ -22,7 +26,7 @@ function App() {
 
   function handleLogin(loggedUser) {
     setUser(loggedUser);
-    navigate('/', { replace: true });
+    navigate('/emergencias', { replace: true });
   }
 
   async function handleLogout() {
@@ -35,25 +39,38 @@ function App() {
     return <p className="p-6 text-ink-muted">Cargando…</p>;
   }
 
+  const canRegisterEmergency = isMunicipalOperator(user);
+
   return (
     <Routes>
       <Route
         path="/login"
-        element={user ? <Navigate to="/" replace /> : <LoginPage onLogin={handleLogin} />}
+        element={user ? <Navigate to="/emergencias" replace /> : <LoginPage onLogin={handleLogin} />}
       />
       <Route
         element={
           user ? (
-            <AppLayout userName={user.username} onLogout={handleLogout}>
-              <Outlet />
+            <AppLayout user={user} userName={user.username} onLogout={handleLogout}>
+              <Outlet context={{ user }} />
             </AppLayout>
           ) : (
             <Navigate to="/login" replace />
           )
         }
       >
-        <Route path="/" element={<Navigate to="/emergencias/nueva" replace />} />
-        <Route path="/emergencias/nueva" element={<EmergencyFormPage />} />
+        <Route path="/" element={<Navigate to="/emergencias" replace />} />
+        <Route path="/emergencias" element={<EmergenciesListPage />} />
+        <Route
+          path="/emergencias/nueva"
+          element={
+            canRegisterEmergency ? (
+              <EmergencyFormPage />
+            ) : (
+              <Navigate to="/emergencias" replace />
+            )
+          }
+        />
+        <Route path="/emergencias/:id/lotes" element={<EmergencyLotesPage />} />
       </Route>
     </Routes>
   );

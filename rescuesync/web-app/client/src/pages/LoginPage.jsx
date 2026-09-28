@@ -58,6 +58,34 @@ function LoginPage({ onLogin }) {
         <Button type="submit" icon={LogIn} loading={loading} className="w-full">
           Ingresar
         </Button>
+
+        {import.meta.env.VITE_USE_MOCK_API !== 'false' && (
+          <div className="pt-2 border-t border-line text-xs text-ink-muted space-y-2">
+            <p className="font-semibold text-ink-soft">Modo local / Mock activo (sin Bonita):</p>
+            <div className="flex flex-col gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('CoordinadorR');
+                  setPassword('123123123');
+                }}
+                className="text-left rounded-lg bg-paper-sunken px-2.5 py-1.5 hover:bg-brand-soft hover:text-brand transition-colors text-ink-soft"
+              >
+                👤 Cargar <span className="font-semibold">CoordinadorR</span> (Centro Coordinador)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('OperadorM');
+                  setPassword('123123123');
+                }}
+                className="text-left rounded-lg bg-paper-sunken px-2.5 py-1.5 hover:bg-brand-soft hover:text-brand transition-colors text-ink-soft"
+              >
+                👤 Cargar <span className="font-semibold">OperadorM</span> (Operador Municipal)
+              </button>
+            </div>
+          </div>
+        )}
       </form>
     </div>
   );
