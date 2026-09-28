@@ -86,3 +86,11 @@ export async function listEmergencies() {
   const { rows } = await pool.query('SELECT * FROM emergencies ORDER BY created_at DESC');
   return rows.map(rowToEmergency);
 }
+
+// Obtener una emergencia por su ID
+export async function getEmergencyById(id) {
+  const { rows } = await pool.query('SELECT * FROM emergencies WHERE id = $1', [id]);
+  if (rows.length === 0) return null;
+  return rowToEmergency(rows[0]);
+}
+
