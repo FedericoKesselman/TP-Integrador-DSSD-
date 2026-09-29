@@ -150,14 +150,52 @@ componentes asociados); falta el otro lado.*
 - Pendiente para más adelante: `bonitaCaseId` queda `null` a propósito —
   se completa en la Fase 5.
 
-## Fase 3 — Lotes (Centro Coordinador Regional)
+## Fase 3 — Lotes (Centro Coordinador Regional) ✅ Implementada
 
-13. Diseñar y documentar el modelo de "lote" (tipo de recurso, cantidad,
+13. [x] Diseñar y documentar el modelo de "lote" (tipo de recurso, cantidad,
     emergencia asociada).
-14. Endpoints: crear lote(s) para una emergencia, listar lotes de una
-    emergencia, publicar/cerrar convocatoria.
-15. Pantalla del Centro Coordinador: ver emergencia registrada →
+14. [x] Endpoints para crear y listar lotes de una emergencia, y publicar la
+    convocatoria. El cierre queda a cargo del temporizador de Bonita en la
+    Fase 5, como define `docs/api-contracts.md`.
+15. [x] Pantalla del Centro Coordinador: ver emergencia registrada →
     desglosarla en lotes → publicar convocatoria.
+
+**Cómo quedó:**
+- Modelo `lotes` relacionado con `emergencies`, creado por la migración del
+  esquema. El contrato y las transiciones de estado están documentados en
+  `docs/api-contracts.md`; las reglas de entrada viven en
+  `web-app/shared/lote-validation.js` y se reutilizan en el server.
+- Server: `lotes/lotes-repository.js` guarda o reemplaza el desglose dentro
+  de una transacción, lista los lotes y publica la convocatoria. Las rutas
+  están expuestas desde `routes/emergency-routes.js` como `POST/GET
+  /api/emergencies/:emergencyId/lotes` y `POST
+  /api/emergencies/:emergencyId/convocatoria`.
+- Reglas del flujo: se exige al menos un lote para publicar; una convocatoria
+  solo se puede abrir desde el estado `registrada`; después de publicarla,
+  sus lotes quedan bloqueados y un intento de modificarlos devuelve `409`.
+- Seguridad: todos los endpoints de emergencias requieren sesión. El alta
+  corresponde al Operador Municipal y la gestión/publicación de lotes al
+  Centro Coordinador Regional. El frontend replica estas restricciones para
+  ocultar acciones y redirigir rutas, pero el control definitivo queda en el
+  backend.
+- Cliente: `EmergenciesListPage` muestra la bandeja, filtros, métricas y el
+  estado de cada emergencia. `EmergencyLotesPage` permite seleccionar
+  recursos, cantidades y notas, guardar el borrador, recuperarlo y publicar
+  la convocatoria. El cálculo humanitario sugerido queda detrás de sus flags
+  de entorno y no altera el flujo básico.
+- Pendiente deliberado para la Fase 5: completar la tarea humana, ejecutar el
+  temporizador de Bonita y pasar de `convocatoria_abierta` a
+  `convocatoria_cerrada`.
+
+**Verificación de cierre:**
+- [x] Login real contra Bonita con `OperadorM` y `CoordinadorR`.
+- [x] Alta real de emergencia y persistencia en PostgreSQL.
+- [x] Guardado y recuperación de múltiples lotes.
+- [x] Publicación con cambio de estado a `convocatoria_abierta`.
+- [x] Rechazo `401` sin sesión y `403` con un rol no autorizado.
+- [x] Rechazo `409` al intentar modificar lotes ya publicados.
+- [x] `npm run lint` sin errores en cliente y server.
+- [x] `npm run build` del cliente completado correctamente.
 
 ## Fase 4 — Ofertas (ONGs)
 
