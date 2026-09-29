@@ -183,9 +183,10 @@ componentes asociados); falta el otro lado.*
   recursos, cantidades y notas, guardar el borrador, recuperarlo y publicar
   la convocatoria. El cálculo humanitario sugerido queda detrás de sus flags
   de entorno y no altera el flujo básico.
-- Pendiente deliberado para la Fase 5: completar la tarea humana, ejecutar el
-  temporizador de Bonita y pasar de `convocatoria_abierta` a
-  `convocatoria_cerrada`.
+- Completar la tarea humana quedó resuelto en la Fase 5: al publicar la
+  convocatoria se completan las tareas del coordinador en Bonita. Sigue
+  pendiente ejecutar el temporizador de Bonita y pasar de
+  `convocatoria_abierta` a `convocatoria_cerrada`.
 
 **Verificación de cierre:**
 - [x] Login real contra Bonita con `OperadorM` y `CoordinadorR`.
