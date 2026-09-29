@@ -95,3 +95,10 @@ export async function setBonitaCaseId(id, caseId) {
   );
   return rowToEmergency(rows[0]);
 }
+
+// Obtener una emergencia por su ID
+export async function getEmergencyById(id) {
+  const { rows } = await pool.query('SELECT * FROM emergencies WHERE id = $1', [id]);
+  if (rows.length === 0) return null;
+  return rowToEmergency(rows[0]);
+}

@@ -181,6 +181,10 @@ Corresponden a la tabla `lotes` (ver migración del esquema). Los crea el
 **Centro Coordinador Regional** al desglosar una emergencia (ej: 5
 Paramédicos, 1000 raciones de alimento).
 
+Todos los endpoints de emergencias y lotes requieren una sesión iniciada.
+El alta de emergencias corresponde al Operador Municipal; guardar lotes y
+publicar la convocatoria corresponde al Centro Coordinador Regional.
+
 ### `POST /api/emergencies/:emergencyId/lotes`
 
 Alta de uno o varios lotes para una emergencia, en un solo pedido (el
@@ -214,6 +218,10 @@ Coordinador arma el desglose completo antes de publicar la convocatoria).
   ]
 }
 ```
+
+**Respuesta `409 Conflict`** si la convocatoria ya fue publicada o cerrada.
+Una vez que la emergencia deja el estado `registrada`, sus lotes quedan
+bloqueados para conservar lo que se publicó a las ONGs.
 
 ### `GET /api/emergencies/:emergencyId/lotes`
 
