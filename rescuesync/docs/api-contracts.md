@@ -111,8 +111,22 @@ Ejemplo:
 }
 ```
 
-`bonitaCaseId` es el id de la instancia de proceso creada en Bonita (`null` si
-todavía no se pudo iniciar).
+`bonitaCaseId` es el id de la instancia de proceso creada en Bonita. Si Bonita
+falló (sesión vencida, proceso no desplegado o activo, Bonita caído), la
+emergencia igual queda guardada y la respuesta sigue siendo `201` pero con
+`bonitaCaseId: null` y un campo extra `bonitaWarning` con el aviso:
+
+```json
+{
+  "id": "uuid",
+  "status": "registrada",
+  "bonitaCaseId": null,
+  "bonitaWarning": "La emergencia se guardó, pero no se pudo iniciar el caso en Bonita.",
+  "createdAt": "2026-09-24T13:35:12.000Z"
+}
+```
+
+`bonitaWarning` solo aparece cuando falló el inicio del caso.
 
 **Respuesta `400 Bad Request`** (validación):
 

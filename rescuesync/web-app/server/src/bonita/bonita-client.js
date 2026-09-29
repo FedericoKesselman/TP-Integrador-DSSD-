@@ -31,21 +31,45 @@ export async function logout(session) {
   });
 }
 
+const PROCESS_NAME = process.env.BONITA_PROCESS_NAME || 'Gestionar Emergencia';
+
+// Headers para llamar a la API de Bonita con la sesión guardada en el login.
+function apiHeaders(session) {
+  return {
+    'X-Bonita-API-Token': session.apiToken,
+    Cookie: `JSESSIONID=${session.jsessionId}; X-Bonita-API-Token=${session.apiToken}`,
+  };
+}
+
+// Busca el id del proceso desplegado y activo con ese nombre (el id cambia en
+// cada redeploy). Si hay varias versiones, devuelve la desplegada más
+// recientemente.
+export async function getProcessId(session, processName) {
+  const filters = `f=name=${encodeURIComponent(processName)}&f=activationState=ENABLED`;
+  const response = await fetch(`${BONITA_URL}/API/bpm/process?c=10&p=0&${filters}`, {
+    headers: apiHeaders(session),
+  });
+  if (!response.ok) throw new Error(`No se pudo buscar el proceso en Bonita: ${response.status}`);
+
+  const processes = await response.json();
+  if (processes.length === 0) {
+    throw new Error(`El proceso ${processName} no está desplegado y activo en Bonita`);
+  }
+  // deploymentDate es "YYYY-MM-DD HH:mm:ss.SSS", así que ordena como texto.
+  return processes.sort((a, b) => b.deploymentDate.localeCompare(a.deploymentDate))[0].id;
+}
+
 // Inicia una instancia del proceso (POST /API/bpm/process/{id}/instantiation).
 // `variables` es el body de la instanciación: Bonita lo valida contra el
 // contrato de inicio del proceso, así que las claves tienen que coincidir con
 // los inputs de ese contrato. Devuelve el caseId como string.
-export async function startCase(session, processId, variables) {
+export async function startCase(session, variables) {
   if (!session) throw new Error('No hay sesión de Bonita.');
-  if (!processId) throw new Error('Falta BONITA_PROCESS_ID.');
 
+  const processId = await getProcessId(session, PROCESS_NAME);
   const response = await fetch(`${BONITA_URL}/API/bpm/process/${processId}/instantiation`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Bonita-API-Token': session.apiToken,
-      Cookie: `JSESSIONID=${session.jsessionId}; X-Bonita-API-Token=${session.apiToken}`,
-    },
+    headers: { 'Content-Type': 'application/json', ...apiHeaders(session) },
     body: JSON.stringify(variables),
   });
 
