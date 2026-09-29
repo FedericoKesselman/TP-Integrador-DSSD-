@@ -1,6 +1,11 @@
 import { Router } from 'express';
 
-import { insertEmergency, listEmergencies } from '../emergencies/emergencies-repository.js';
+import { startCase } from '../bonita/bonita-client.js';
+import {
+  insertEmergency,
+  listEmergencies,
+  setBonitaCaseId,
+} from '../emergencies/emergencies-repository.js';
 import { validateEmergencyPayload } from '../validate-emergency.js';
 
 const router = Router();
@@ -9,6 +14,9 @@ const router = Router();
 // Municipal. Corresponde a la tarea BPM "Registrar Emergencia" (ver
 // docs/api-contracts.md). El cliente ya valida antes de enviar, pero acá se
 // vuelve a validar server-side con la misma regla compartida.
+// Después de guardar, inicia el caso en Bonita con la sesión del usuario. Si
+// Bonita falla la emergencia queda guardada igual (bonitaCaseId null) y la
+// respuesta trae `bonitaWarning` para poder reintentar.
 router.post('/', async (req, res) => {
   const errors = validateEmergencyPayload(req.body);
   if (Object.keys(errors).length > 0) {
@@ -17,7 +25,18 @@ router.post('/', async (req, res) => {
 
   try {
     const emergency = await insertEmergency(req.body);
-    return res.status(201).json(emergency);
+    try {
+      const caseId = await startCase(req.session.bonita, process.env.BONITA_PROCESS_ID, {
+        emergencyID: emergency.id,
+      });
+      return res.status(201).json(await setBonitaCaseId(emergency.id, caseId));
+    } catch (error) {
+      console.error(`Emergencia ${emergency.id} guardada, pero no se inició el caso:`, error);
+      return res.status(201).json({
+        ...emergency,
+        bonitaWarning: 'La emergencia se guardó, pero no se pudo iniciar el caso en Bonita.',
+      });
+    }
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'No se pudo registrar la emergencia.' });

@@ -86,3 +86,12 @@ export async function listEmergencies() {
   const { rows } = await pool.query('SELECT * FROM emergencies ORDER BY created_at DESC');
   return rows.map(rowToEmergency);
 }
+
+// Guarda el id del caso de Bonita una vez iniciado el proceso (Fase 5).
+export async function setBonitaCaseId(id, caseId) {
+  const { rows } = await pool.query(
+    'UPDATE emergencies SET bonita_case_id = $1 WHERE id = $2 RETURNING *',
+    [caseId, id],
+  );
+  return rowToEmergency(rows[0]);
+}
