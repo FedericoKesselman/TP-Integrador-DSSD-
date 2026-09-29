@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import { startCase } from '../bonita/bonita-client.js';
+import { completePendingTasks, startCase } from '../bonita/bonita-client.js';
 import {
   getEmergencyById,
   insertEmergency,
@@ -10,6 +10,7 @@ import {
 import {
   listLotesForEmergency,
   publishConvocatoriaForEmergency,
+  revertConvocatoria,
   saveLotesForEmergency,
 } from '../lotes/lotes-repository.js';
 import { requireRole, requireSession } from '../middleware/auth-middleware.js';
@@ -17,6 +18,15 @@ import { validateEmergencyPayload } from '../validate-emergency.js';
 import { validateLotesPayload } from '../validate-lote.js';
 
 const router = Router();
+
+// Tareas del Centro Coordinador que se tildan en Bonita al publicar la
+// convocatoria, en este orden. Se completa lo que esté pendiente: en la primera
+// vuelta las tres, y si Bonita vuelve a una tarea anterior, solo las últimas.
+const COORDINATOR_TASKS = [
+  'Revisar Emergencia',
+  'Generar Lotes de Necesidades',
+  'Publicar Convocatoria',
+];
 
 // Todos los endpoints de emergencias requieren una sesión iniciada mediante Bonita.
 router.use(requireSession);
@@ -40,7 +50,29 @@ router.post('/', requireRole('operador_municipal'), async (req, res) => {
       const caseId = await startCase(req.session.bonita, {
         emergencyID: emergency.id,
       });
-      return res.status(201).json(await setBonitaCaseId(emergency.id, caseId));
+      const saved = await setBonitaCaseId(emergency.id, caseId);
+
+      // El alta ya es la tarea "Registrar Emergencia": se tilda para que el
+      // caso llegue a "Revisar Emergencia". Si falla, el alta no se pierde.
+      try {
+        const { completed } = await completePendingTasks(
+          req.session.bonita,
+          caseId,
+          ['Registrar Emergencia'],
+          { waitForFirst: true },
+        );
+        if (completed.length === 0) throw new Error('la tarea no estaba pendiente');
+      } catch (taskError) {
+        console.error(
+          `Caso ${caseId} creado, pero no se completó Registrar Emergencia:`,
+          taskError,
+        );
+        return res.status(201).json({
+          ...saved,
+          bonitaWarning: 'El caso se creó pero no se pudo completar Registrar Emergencia.',
+        });
+      }
+      return res.status(201).json(saved);
     } catch (error) {
       console.error(`Emergencia ${emergency.id} guardada, pero no se inició el caso:`, error);
       return res.status(201).json({
@@ -110,9 +142,39 @@ router.get('/:emergencyId/lotes', async (req, res) => {
 });
 
 // POST /api/emergencies/:emergencyId/convocatoria — publica la convocatoria (pasa a convocatoria_abierta)
+// Publicar en la web y completar "Publicar Convocatoria" en Bonita (que arranca
+// el reloj de la convocatoria) van juntos: si Bonita no avanza, se revierte.
 router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), async (req, res) => {
+  const { emergencyId } = req.params;
   try {
-    const result = await publishConvocatoriaForEmergency(req.params.emergencyId);
+    const result = await publishConvocatoriaForEmergency(emergencyId);
+
+    try {
+      const emergency = await getEmergencyById(emergencyId);
+      if (!emergency.bonitaCaseId) throw new Error('La emergencia no tiene caso en Bonita.');
+      const { completed } = await completePendingTasks(
+        req.session.bonita,
+        emergency.bonitaCaseId,
+        COORDINATOR_TASKS,
+      );
+      if (!completed.includes('Publicar Convocatoria')) {
+        throw new Error(
+          '"Publicar Convocatoria" no estaba pendiente ni se pudo completar en Bonita.',
+        );
+      }
+    } catch (bonitaError) {
+      console.error(
+        `Convocatoria de ${emergencyId} revertida:`,
+        bonitaError,
+        bonitaError.completed,
+      );
+      await revertConvocatoria(emergencyId);
+      return res.status(502).json({
+        message:
+          'No se pudo iniciar la convocatoria en Bonita; la emergencia sigue en estado registrada, reintentá.',
+      });
+    }
+
     return res.status(200).json(result);
   } catch (error) {
     console.error(error);

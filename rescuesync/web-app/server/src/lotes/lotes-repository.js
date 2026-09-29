@@ -122,3 +122,11 @@ export async function publishConvocatoriaForEmergency(emergencyId) {
     client.release();
   }
 }
+
+// Deshace la publicación si Bonita no pudo avanzar (vuelve a 'registrada').
+export async function revertConvocatoria(emergencyId) {
+  await pool.query(
+    "UPDATE emergencies SET status = 'registrada' WHERE id = $1 AND status = 'convocatoria_abierta'",
+    [emergencyId],
+  );
+}
