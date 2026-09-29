@@ -450,9 +450,10 @@ function EmergencyLotesPage() {
       const res = await publishConvocatoria(id);
       setEmergency((prev) => ({ ...prev, status: res.status }));
       setShowConfirmModal(false);
-      setSuccessMessage('¡Convocatoria publicada con éxito! Notificada a la red de ONGs.');
+      setSuccessMessage('¡Convocatoria publicada con éxito!');
     } catch (err) {
       setError(err.message);
+      setShowConfirmModal(false);
     } finally {
       setPublishing(false);
     }

@@ -183,9 +183,10 @@ componentes asociados); falta el otro lado.*
   recursos, cantidades y notas, guardar el borrador, recuperarlo y publicar
   la convocatoria. El cálculo humanitario sugerido queda detrás de sus flags
   de entorno y no altera el flujo básico.
-- Pendiente deliberado para la Fase 5: completar la tarea humana, ejecutar el
-  temporizador de Bonita y pasar de `convocatoria_abierta` a
-  `convocatoria_cerrada`.
+- Completar la tarea humana quedó resuelto en la Fase 5: al publicar la
+  convocatoria se completan las tareas del coordinador en Bonita. Sigue
+  pendiente ejecutar el temporizador de Bonita y pasar de
+  `convocatoria_abierta` a `convocatoria_cerrada`.
 
 **Verificación de cierre:**
 - [x] Login real contra Bonita con `OperadorM` y `CoordinadorR`.
@@ -207,7 +208,7 @@ componentes asociados); falta el otro lado.*
     (alcance mínimo que pide la Entrega 2; consorcios complejos pueden
     quedar simplificados para esta etapa).
 
-## Fase 5 — Integración con Bonita: iniciar y completar tareas
+## Fase 5 — Integración con Bonita: iniciar y completar tareas ✅ Implementada
 
 19. [x] Modelar (aunque sea preliminar) el proceso en Bonita si todavía no está
     desde la Entrega 1, o retomar el ya entregado.
@@ -218,12 +219,12 @@ componentes asociados); falta el otro lado.*
 21. [x] Guardar el `bonitaCaseId` devuelto en la tabla `emergencies` y
     mostrarlo en la confirmación (el campo ya existe en el frontend, solo
     falta que deje de ser `null`).
-22. Implementar la llamada para **completar tareas humanas** en Bonita
+22. [x] Implementar la llamada para **completar tareas humanas** en Bonita
     desde la app (por ejemplo, cuando el Coordinador publica la
     convocatoria de lotes), usando el login service para autenticar esa
     acción.
 
-**Cómo quedó (puntos 19–21; el 22 sigue pendiente):**
+**Cómo quedó:**
 - Server: `bonita/bonita-client.js` suma `getProcessId` (busca el id del
   proceso por nombre entre los procesos desplegados y activos; con varias
   versiones toma la desplegada más recientemente) y `startCase`, que inicia
@@ -231,16 +232,35 @@ componentes asociados); falta el otro lado.*
   proceso sale de `BONITA_PROCESS_NAME` (default `Gestionar Emergencia`);
   no hay ningún id en el `.env`, así que redesplegar en Bonita Studio no
   requiere tocar nada.
+  Además suma `completeTask` (busca la tarea pendiente del caso por nombre,
+  la toma para el usuario de la sesión y la completa con body `{}`, porque
+  las tareas humanas del diagrama tienen contrato vacío) y
+  `completePendingTasks` (recorre nombres en orden y salta las que no estén
+  pendientes; reintenta hasta 3 veces con 300 ms cuando la tarea todavía no
+  apareció).
 - `POST /api/emergencies` inicia el caso después de guardar la emergencia y
   guarda el `bonitaCaseId` en la fila. Si Bonita falla, la emergencia queda
   guardada igual y la respuesta trae `bonitaWarning` (con `bonitaCaseId`
   en `null`). El cliente muestra `Caso N` en la confirmación, o el aviso.
+- Después de iniciar el caso, el mismo `POST` completa la tarea "Registrar
+  Emergencia"; espera hasta unos 900 ms a que Bonita la deje lista. Si
+  falla, la emergencia queda guardada con su `bonitaCaseId` y la respuesta
+  trae `bonitaWarning`.
+- `POST /api/emergencies/:emergencyId/convocatoria` completa las tareas del
+  coordinador que estén pendientes, en orden: "Revisar Emergencia",
+  "Generar Lotes de Necesidades" y "Publicar Convocatoria". Publicar en la
+  web y completar "Publicar Convocatoria" (que arranca el reloj de la
+  convocatoria) van juntos: si Bonita no avanza, se revierte la publicación
+  (la emergencia vuelve a `registrada`) y responde `502`.
+- Los nombres de las tareas tienen que coincidir exactamente con los del
+  diagrama de Bonita.
 - En Bonita (repo aparte): el contrato de inicio del proceso tiene el input
   `emergencyID`, mapeado a la variable `emergenciaId`. El nombre del input
   tiene que coincidir exactamente con lo que manda el server (distingue
   mayúsculas): `emergencyID`.
-- Pendiente: reintento del caso cuando falló el inicio, y completar tareas
-  humanas desde la app (punto 22).
+- Pendiente: reintento del caso cuando falló el alta; soporte web para los
+  regresos REFORMULAR y REABRIR del diagrama; los dos conectores REST del
+  diagrama apuntan a URLs que no existen.
 
 ## Fase 6 — Cierre de etapa
 

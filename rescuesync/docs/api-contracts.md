@@ -126,7 +126,19 @@ emergencia igual queda guardada y la respuesta sigue siendo `201` pero con
 }
 ```
 
-`bonitaWarning` solo aparece cuando falló el inicio del caso.
+`bonitaWarning` aparece cuando falló el inicio del caso, y también cuando el
+caso se creó (con su `bonitaCaseId`) pero no se pudo completar la tarea
+"Registrar Emergencia" que el alta tilda a continuación:
+
+```json
+{
+  "id": "uuid",
+  "status": "registrada",
+  "bonitaCaseId": "1234",
+  "bonitaWarning": "El caso se creó pero no se pudo completar Registrar Emergencia.",
+  "createdAt": "2026-09-24T13:35:12.000Z"
+}
+```
 
 **Respuesta `400 Bad Request`** (validación):
 
@@ -247,9 +259,11 @@ del Sistema Nacional.
 
 Publica oficialmente la convocatoria: pasa `emergencies.status` de
 `registrada` a `convocatoria_abierta`. Requiere que la emergencia tenga al
-menos un lote cargado. Esta acción es la que, en la Fase 5 del roadmap, va a
-disparar también la llamada para **completar la tarea correspondiente en
-Bonita** (usando el login service, ver `roadmapfase2.md`).
+menos un lote cargado. Esta acción también **completa en Bonita** las tareas
+del coordinador que estén pendientes ("Revisar Emergencia", "Generar Lotes de
+Necesidades" y "Publicar Convocatoria"), con la sesión del usuario (ver
+`roadmapfase2.md`). Publicar en la web y avanzar en Bonita van juntos: si
+Bonita no avanza, se revierte la publicación.
 
 **Respuesta `200 OK`**
 
@@ -262,6 +276,17 @@ convocatoria abierta/cerrada:
 
 ```json
 { "message": "La emergencia no tiene lotes cargados." }
+```
+
+**Respuesta `502 Bad Gateway`** si Bonita no pudo avanzar (la emergencia no
+tiene caso en Bonita, Bonita dio error, o "Publicar Convocatoria" no estaba
+pendiente). La publicación se revierte: la emergencia sigue en `registrada` y
+se puede reintentar.
+
+```json
+{
+  "message": "No se pudo iniciar la convocatoria en Bonita; la emergencia sigue en estado registrada, reintentá."
+}
 ```
 
 ## Ofertas

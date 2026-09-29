@@ -104,6 +104,11 @@ procesos desplegados y activos (`BONITA_PROCESS_ID` ya no existe).
   se inicia y la respuesta trae `bonitaWarning`.
 - El contrato de inicio del proceso tiene que tener el input `emergencyID`
   (distingue mayúsculas).
+- El alta y la publicación de la convocatoria también completan tareas del
+  caso en Bonita ("Registrar Emergencia"; "Revisar Emergencia", "Generar
+  Lotes de Necesidades" y "Publicar Convocatoria"), así que requieren un
+  usuario con el rol correcto en Bonita (`operador_municipal` y
+  `coordinador_regional`).
 
 ## Después de hacer `git pull`
 
