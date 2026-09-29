@@ -3,22 +3,12 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { Compass, MapPin, ZoomIn, ZoomOut } from 'lucide-react';
 import PropTypes from 'prop-types';
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 
-// Coordenadas de referencia para municipios comunes en Argentina si lat/lon son nulos
-const FALLBACK_COORDS = {
-  'la plata': { lat: -34.9214, lon: -57.9545 },
-  'capilla del monte': { lat: -30.8606, lon: -64.5244 },
-  córdoba: { lat: -31.4201, lon: -64.1888 },
-  cordoba: { lat: -31.4201, lon: -64.1888 },
-  quilmes: { lat: -34.7242, lon: -58.2524 },
-  tigre: { lat: -34.4251, lon: -58.5796 },
-  rosario: { lat: -32.9468, lon: -60.6393 },
-  'mar del plata': { lat: -38.0055, lon: -57.5562 },
-  mendoza: { lat: -32.8895, lon: -68.8458 },
-  salta: { lat: -24.7859, lon: -65.4117 },
-  bariloche: { lat: -41.1335, lon: -71.3103 },
-};
+import { PROVINCES } from '../../features/emergencies/emergency-constants.js';
+import { getMunicipalities } from '../../services/georef-service.js';
+
+const ARGENTINA_CENTER = { lat: -38.4161, lon: -63.6167 };
 
 const SEVERITY_PIN_COLORS = {
   baja: '#10b981', // emerald
@@ -27,9 +17,19 @@ const SEVERITY_PIN_COLORS = {
   critica: '#ef4444', // red
 };
 
+function normalizePlaceName(value = '') {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function MiniIncidentMap({
   latitude = null,
   longitude = null,
+  municipalityId = '',
+  provinceId = '',
   municipality = '',
   province = '',
   severity = 'media',
@@ -40,9 +40,9 @@ function MiniIncidentMap({
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const [georefCoords, setGeorefCoords] = useState(null);
 
-  // Resolver coordenadas reales o fallback
-  const resolvedCoords = useMemo(() => {
+  const explicitCoords = useMemo(() => {
     if (
       typeof latitude === 'number' &&
       typeof longitude === 'number' &&
@@ -51,16 +51,53 @@ function MiniIncidentMap({
     ) {
       return { lat: latitude, lon: longitude };
     }
-    const muniKey = (municipality || '').trim().toLowerCase();
-    if (FALLBACK_COORDS[muniKey]) {
-      return FALLBACK_COORDS[muniKey];
+    return null;
+  }, [latitude, longitude]);
+
+  const provinceCoords = useMemo(() => {
+    const provinceById = PROVINCES.find((item) => item.id === String(provinceId));
+    if (provinceById?.centroide) return provinceById.centroide;
+
+    const normalizedProvince = normalizePlaceName(province);
+    const provinceByName = PROVINCES.find(
+      (item) => normalizePlaceName(item.nombre) === normalizedProvince,
+    );
+    return provinceByName?.centroide ?? null;
+  }, [province, provinceId]);
+
+  useEffect(() => {
+    if (explicitCoords || !provinceId) {
+      setGeorefCoords(null);
+      return undefined;
     }
-    const provKey = (province || '').trim().toLowerCase();
-    if (FALLBACK_COORDS[provKey]) {
-      return FALLBACK_COORDS[provKey];
-    }
-    return { lat: -34.9214, lon: -57.9545 }; // Default La Plata
-  }, [latitude, longitude, municipality, province]);
+
+    const controller = new AbortController();
+    setGeorefCoords(null);
+
+    getMunicipalities(provinceId, { signal: controller.signal })
+      .then((items) => {
+        const normalizedMunicipality = normalizePlaceName(municipality);
+        const matchedMunicipality = items.find((item) => item.id === String(municipalityId))
+          ?? items.find((item) => normalizePlaceName(item.nombre) === normalizedMunicipality);
+
+        setGeorefCoords(matchedMunicipality?.centroide ?? null);
+      })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.warn('MiniIncidentMap georef warning:', err);
+        }
+      });
+
+    return () => controller.abort();
+  }, [explicitCoords, municipality, municipalityId, provinceId]);
+
+  // Resolver coordenadas reales o un centroide oficial aproximado.
+  const resolvedCoords = useMemo(() => {
+    if (explicitCoords) return explicitCoords;
+    if (georefCoords) return georefCoords;
+    if (provinceCoords) return provinceCoords;
+    return ARGENTINA_CENTER;
+  }, [explicitCoords, georefCoords, provinceCoords]);
 
   const pinColor = SEVERITY_PIN_COLORS[severity] || '#0284c7';
 
@@ -194,6 +231,8 @@ function MiniIncidentMap({
 MiniIncidentMap.propTypes = {
   latitude: PropTypes.number,
   longitude: PropTypes.number,
+  municipalityId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  provinceId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   municipality: PropTypes.string,
   province: PropTypes.string,
   severity: PropTypes.string,

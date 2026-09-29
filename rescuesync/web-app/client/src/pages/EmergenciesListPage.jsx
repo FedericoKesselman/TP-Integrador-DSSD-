@@ -568,6 +568,8 @@ function EmergenciesListPage() {
                         <MiniIncidentMap
                           latitude={item.latitude}
                           longitude={item.longitude}
+                          municipalityId={item.municipalityId}
+                          provinceId={item.provinceId}
                           municipality={item.municipality}
                           province={item.province}
                           severity={item.severity}

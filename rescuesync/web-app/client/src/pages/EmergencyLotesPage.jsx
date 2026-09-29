@@ -754,6 +754,8 @@ function EmergencyLotesPage() {
                 <MiniIncidentMap
                   latitude={emergency.latitude}
                   longitude={emergency.longitude}
+                  municipalityId={emergency.municipalityId}
+                  provinceId={emergency.provinceId}
                   municipality={emergency.municipality}
                   province={emergency.province}
                   severity={emergency.severity}
@@ -848,146 +850,145 @@ function EmergencyLotesPage() {
         {/* ═══════════════════════════════════════════════════════════
             2. SELECTOR DE CATEGORÍAS CON HOVER DINÁMICO
         ═══════════════════════════════════════════════════════════ */}
-        <section className="mb-10">
-          <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-brand" />
-                <span className="text-xs font-extrabold uppercase tracking-widest text-brand">
-                  Selección de Fuerzas y Suministros
-                </span>
-              </div>
-              <h2 className="text-2xl font-black tracking-tight text-slate-900">
-                Categorías de Ayuda Humanitaria
-              </h2>
-              <p className="text-sm text-slate-500">
-                Hacé click para abrir y configurar los insumos necesarios sin límites en el
-                formulario.
-              </p>
-            </div>
+        {!isPublished && (
+          <>
+            <section className="mb-10">
+              <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-brand" />
+                    <span className="text-xs font-extrabold uppercase tracking-widest text-brand">
+                      Selección de Fuerzas y Suministros
+                    </span>
+                  </div>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-900">
+                    Categorías de Ayuda Humanitaria
+                  </h2>
+                  <p className="text-sm text-slate-500">
+                    Hacé click para abrir y configurar los insumos necesarios sin límites en el
+                    formulario.
+                  </p>
+                </div>
 
-            {totalLotes > 0 && (
-              <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 border border-slate-200 shadow-xs">
-                <span className="text-xs font-bold text-slate-700">
-                  {activeCategoryCount} categorías activas ·{' '}
-                  <strong className="text-brand">{totalLotes}</strong> recursos ·{' '}
-                  <strong className="text-brand">{totalUnidades.toLocaleString('es-AR')}</strong>{' '}
-                  unidades
-                </span>
+                {totalLotes > 0 && (
+                  <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2 border border-slate-200 shadow-xs">
+                    <span className="text-xs font-bold text-slate-700">
+                      {activeCategoryCount} categorías activas ·{' '}
+                      <strong className="text-brand">{totalLotes}</strong> recursos ·{' '}
+                      <strong className="text-brand">{totalUnidades.toLocaleString('es-AR')}</strong>{' '}
+                      unidades
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Grilla de las 5 Categorías */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            {sortedCategories.map((cat) => {
+              {/* Grilla de las 5 Categorías */}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+                {sortedCategories.map((cat) => {
+                  const CatIcon = CATEGORY_ICONS[cat.icon] || Shield;
+                  const count = getCategoryCount(cat.id);
+                  const isExpanded = expandedCategory === cat.id;
+                  const hoverTheme = CATEGORY_HOVER_STYLES[cat.id] || CATEGORY_HOVER_STYLES.rescate;
+
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
+                      className={`group relative flex flex-col items-center gap-3 rounded-3xl border-2 p-5 text-center transition-all duration-300 ${
+                        isExpanded
+                          ? `${hoverTheme.activeRing} shadow-xl scale-[1.02]`
+                          : `bg-white ${hoverTheme.baseBorder} ${hoverTheme.hoverBorder} ${hoverTheme.hoverBg} shadow-xs hover:shadow-xl hover:-translate-y-1 ${hoverTheme.glow}`
+                      } cursor-pointer`}
+                    >
+                      {count > 0 && (
+                        <span
+                          className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white shadow-md transition-transform group-hover:scale-110"
+                          style={{ backgroundColor: hoverTheme.accentColor }}
+                        >
+                          {count}
+                        </span>
+                      )}
+
+                      <span
+                        className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-inner transition-all duration-300 ${
+                          isExpanded
+                            ? 'bg-white text-slate-900 shadow-md scale-105'
+                            : `bg-slate-100 text-slate-600 ${hoverTheme.hoverIconBg}`
+                        }`}
+                      >
+                        <CatIcon className="h-7 w-7" />
+                      </span>
+
+                      <div>
+                        <span
+                          className={`block text-base font-black tracking-tight leading-tight transition-colors ${
+                            isExpanded ? 'text-inherit' : `text-slate-800 ${hoverTheme.hoverText}`
+                          }`}
+                        >
+                          {cat.shortLabel}
+                        </span>
+                        <span className="text-[11px] font-semibold text-slate-400 block mt-0.5">
+                          {cat.resources.length} tipos disponibles
+                        </span>
+                      </div>
+
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-slate-700">
+                          {isExpanded ? (
+                            <>
+                              Ocultar <ChevronUp className="h-3 w-3" />
+                            </>
+                          ) : (
+                            <>
+                              Configurar <ChevronDown className="h-3 w-3" />
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {/* ═══════════════════════════════════════════════════════════
+                3. PANEL EXPANDIDO CON CONTROLES FLEXIBLES
+                - PRESETS ARRIBA DEL SLIDER
+                - NÚMERO EDITABLE GIGANTE (SIN LÍMITES NI BLOQUEOS)
+                - NOTA OPERATIVA GRANDE QUE APROVECHA EL ANCHO
+            ═══════════════════════════════════════════════════════════ */}
+            {expandedCategory && (() => {
+              const cat = RESOURCE_CATEGORIES.find((c) => c.id === expandedCategory);
+              if (!cat) return null;
               const CatIcon = CATEGORY_ICONS[cat.icon] || Shield;
-              const count = getCategoryCount(cat.id);
-              const isExpanded = expandedCategory === cat.id;
               const hoverTheme = CATEGORY_HOVER_STYLES[cat.id] || CATEGORY_HOVER_STYLES.rescate;
 
               return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  disabled={isPublished}
-                  onClick={() => setExpandedCategory(isExpanded ? null : cat.id)}
-                  className={`group relative flex flex-col items-center gap-3 rounded-3xl border-2 p-5 text-center transition-all duration-300 ${
-                    isExpanded
-                      ? `${hoverTheme.activeRing} shadow-xl scale-[1.02]`
-                      : `bg-white ${hoverTheme.baseBorder} ${hoverTheme.hoverBorder} ${hoverTheme.hoverBg} shadow-xs hover:shadow-xl hover:-translate-y-1 ${hoverTheme.glow}`
-                  } ${isPublished ? 'cursor-default' : 'cursor-pointer'}`}
-                >
-                  {count > 0 && (
-                    <span
-                      className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white shadow-md transition-transform group-hover:scale-110"
-                      style={{ backgroundColor: hoverTheme.accentColor }}
-                    >
-                      {count}
-                    </span>
-                  )}
-
-                  <span
-                    className={`flex h-14 w-14 items-center justify-center rounded-2xl shadow-inner transition-all duration-300 ${
-                      isExpanded
-                        ? 'bg-white text-slate-900 shadow-md scale-105'
-                        : `bg-slate-100 text-slate-600 ${hoverTheme.hoverIconBg}`
-                    }`}
+                <section className="mb-10 overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-md animate-in slide-in-from-top-3 duration-300">
+                  {/* Header de Categoría */}
+                  <div
+                    className={`flex flex-wrap items-center justify-between gap-4 px-8 py-5 text-white ${hoverTheme.headerBg}`}
                   >
-                    <CatIcon className="h-7 w-7" />
-                  </span>
+                    <div className="flex items-center gap-4">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white shadow-inner backdrop-blur-sm">
+                        <CatIcon className="h-6 w-6" />
+                      </span>
+                      <div>
+                        <h3 className="text-xl font-black tracking-tight">{cat.label}</h3>
+                        <p className="text-xs text-white/85">
+                          Ajustá cantidades con los presets, con el slider o escribiendo libremente
+                          con el teclado.
+                        </p>
+                      </div>
+                    </div>
 
-                  <div>
-                    <span
-                      className={`block text-base font-black tracking-tight leading-tight transition-colors ${
-                        isExpanded ? 'text-inherit' : `text-slate-800 ${hoverTheme.hoverText}`
-                      }`}
-                    >
-                      {cat.shortLabel}
-                    </span>
-                    <span className="text-[11px] font-semibold text-slate-400 block mt-0.5">
-                      {cat.resources.length} tipos disponibles
-                    </span>
-                  </div>
-
-                  {!isPublished && (
-                    <div className="mt-1">
-                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-400 group-hover:text-slate-700">
-                        {isExpanded ? (
-                          <>
-                            Ocultar <ChevronUp className="h-3 w-3" />
-                          </>
-                        ) : (
-                          <>
-                            Configurar <ChevronDown className="h-3 w-3" />
-                          </>
-                        )}
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-full bg-white/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider backdrop-blur-sm">
+                        {getCategoryCount(cat.id)} de {cat.resources.length} seleccionados
                       </span>
                     </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ═══════════════════════════════════════════════════════════
-            3. PANEL EXPANDIDO CON CONTROLES FLEXIBLES
-            - PRESETS ARRIBA DEL SLIDER
-            - NÚMERO EDITABLE GIGANTE (SIN LÍMITES NI BLOQUEOS)
-            - NOTA OPERATIVA GRANDE QUE APROVECHA EL ANCHO
-        ═══════════════════════════════════════════════════════════ */}
-        {expandedCategory && (() => {
-          const cat = RESOURCE_CATEGORIES.find((c) => c.id === expandedCategory);
-          if (!cat) return null;
-          const CatIcon = CATEGORY_ICONS[cat.icon] || Shield;
-          const hoverTheme = CATEGORY_HOVER_STYLES[cat.id] || CATEGORY_HOVER_STYLES.rescate;
-
-          return (
-            <section className="mb-10 overflow-hidden rounded-3xl border border-slate-200/90 bg-white shadow-md animate-in slide-in-from-top-3 duration-300">
-              {/* Header de Categoría */}
-              <div
-                className={`flex flex-wrap items-center justify-between gap-4 px-8 py-5 text-white ${hoverTheme.headerBg}`}
-              >
-                <div className="flex items-center gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/20 text-white shadow-inner backdrop-blur-sm">
-                    <CatIcon className="h-6 w-6" />
-                  </span>
-                  <div>
-                    <h3 className="text-xl font-black tracking-tight">{cat.label}</h3>
-                    <p className="text-xs text-white/85">
-                      Ajustá cantidades con los presets, con el slider o escribiendo libremente con
-                      el teclado.
-                    </p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-white/20 px-3.5 py-1 text-xs font-black uppercase tracking-wider backdrop-blur-sm">
-                    {getCategoryCount(cat.id)} de {cat.resources.length} seleccionados
-                  </span>
-                </div>
-              </div>
 
               {/* Lista de Recursos con Layout Ancho y Sin Restricciones */}
               <div className="divide-y divide-slate-100 p-4 space-y-3">
@@ -1239,7 +1240,9 @@ function EmergencyLotesPage() {
               </div>
             </section>
           );
-        })()}
+            })()}
+          </>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════
             4. RESUMEN DEL DESGLOSE - PUNTO DE DECISIÓN (FUNDAMENTAL)
