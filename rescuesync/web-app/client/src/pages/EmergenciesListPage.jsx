@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Send,
   Shield,
   ShieldAlert,
   SlidersHorizontal,
@@ -25,7 +26,11 @@ import Alert from '../components/ui/Alert.jsx';
 import Button from '../components/ui/Button.jsx';
 import MiniIncidentMap from '../components/ui/MiniIncidentMap.jsx';
 import { SEVERITY_LEVELS } from '../features/emergencies/emergency-constants.js';
-import { isMunicipalOperator, isRegionalCoordinator } from '../lib/auth-roles.js';
+import {
+  isMunicipalOperator,
+  isOngRepresentative,
+  isRegionalCoordinator,
+} from '../lib/auth-roles.js';
 import { listEmergencies } from '../services/emergency-service.js';
 
 const TYPE_CONFIG = {
@@ -113,6 +118,7 @@ function EmergenciesListPage() {
   const user = outletContext?.user;
   const canRegisterEmergency = isMunicipalOperator(user);
   const canManageLotes = isRegionalCoordinator(user);
+  const canManageOffers = isOngRepresentative(user);
 
   const fetchList = () => {
     setLoading(true);
@@ -138,19 +144,23 @@ function EmergenciesListPage() {
     return { total, registradas, abiertas, afectados };
   }, [emergencies]);
 
-  const filteredEmergencies = useMemo(() => emergencies.filter((item) => {
-      const matchSearch =
-        !search.trim() ||
-        item.municipality?.toLowerCase().includes(search.toLowerCase()) ||
-        item.province?.toLowerCase().includes(search.toLowerCase()) ||
-        item.affectedZone?.toLowerCase().includes(search.toLowerCase()) ||
-        item.type?.toLowerCase().includes(search.toLowerCase());
+  const filteredEmergencies = useMemo(
+    () =>
+      emergencies.filter((item) => {
+        const matchSearch =
+          !search.trim() ||
+          item.municipality?.toLowerCase().includes(search.toLowerCase()) ||
+          item.province?.toLowerCase().includes(search.toLowerCase()) ||
+          item.affectedZone?.toLowerCase().includes(search.toLowerCase()) ||
+          item.type?.toLowerCase().includes(search.toLowerCase());
 
-      const matchStatus = statusFilter === 'all' || item.status === statusFilter;
-      const matchSeverity = severityFilter === 'all' || item.severity === severityFilter;
+        const matchStatus = statusFilter === 'all' || item.status === statusFilter;
+        const matchSeverity = severityFilter === 'all' || item.severity === severityFilter;
 
-      return matchSearch && matchStatus && matchSeverity;
-    }), [emergencies, search, statusFilter, severityFilter]);
+        return matchSearch && matchStatus && matchSeverity;
+      }),
+    [emergencies, search, statusFilter, severityFilter],
+  );
 
   return (
     <div className="min-h-screen bg-tactical-grid text-slate-800 pb-20 font-sans">
@@ -657,6 +667,18 @@ function EmergenciesListPage() {
                         <span>
                           {isAbierta ? 'Ver Lotes Convocados' : 'Desglosar Lotes y Convocar'}
                         </span>
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
+                      </Link>
+                    </div>
+                  )}
+                  {canManageOffers && isAbierta && (
+                    <div className="mt-6 pt-2">
+                      <Link
+                        to={`/emergencias/${item.id}/oferta`}
+                        className="group/btn flex w-full items-center justify-center gap-2.5 rounded-2xl bg-emerald-600 px-5 py-3.5 text-sm font-black text-white shadow-md shadow-emerald-600/20 transition-all duration-200 hover:bg-emerald-700 hover:shadow-lg active:scale-[0.99]"
+                      >
+                        <Send className="h-4 w-4" />
+                        <span>Cargar o revisar mi oferta</span>
                         <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
                       </Link>
                     </div>

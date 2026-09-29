@@ -24,7 +24,8 @@ export function resolveUserRole(username) {
   if (
     normalized.includes('ong') ||
     normalized.includes('rescatistas') ||
-    normalized.includes('solidarias')
+    normalized.includes('solidarias') ||
+    normalized.includes('cruz')
   ) {
     return 'representante_ong';
   }
@@ -36,6 +37,18 @@ export function resolveUserRole(username) {
     return 'auditor';
   }
   return 'coordinador_regional';
+}
+
+export function resolveOngRef(username) {
+  if (!username) return null;
+  const normalized = String(username).trim().toLowerCase();
+
+  if (normalized.includes('rescatistas')) return 'rescatistas-unidos';
+  if (normalized.includes('solidarias')) return 'manos-solidarias';
+  if (normalized.includes('cruz')) return 'cruz-roja';
+  if (normalized.includes('ong')) return 'ong-demo';
+
+  return null;
 }
 
 router.post('/login', async (req, res) => {
@@ -55,7 +68,8 @@ router.post('/login', async (req, res) => {
     req.session.bonita = bonitaSession; // se guarda en la memoria del server
     req.session.username = username;
     req.session.role = role;
-    return res.json({ username, role });
+    req.session.ongRef = role === 'representante_ong' ? resolveOngRef(username) : null;
+    return res.json({ username, role, ongRef: req.session.ongRef });
   } catch (error) {
     console.error(error);
     return res.status(502).json({ message: 'No se pudo conectar con Bonita.' });
@@ -67,7 +81,10 @@ router.get('/me', (req, res) => {
     return res.status(401).json({ message: 'No hay sesión iniciada.' });
   }
   const role = req.session.role || resolveUserRole(req.session.username);
-  return res.json({ username: req.session.username, role });
+  const ongRef = req.session.ongRef ?? (role === 'representante_ong'
+    ? resolveOngRef(req.session.username)
+    : null);
+  return res.json({ username: req.session.username, role, ongRef });
 });
 
 router.post('/logout', async (req, res) => {

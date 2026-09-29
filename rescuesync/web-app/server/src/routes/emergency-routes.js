@@ -11,8 +11,13 @@ import {
   saveLotesForEmergency,
 } from '../lotes/lotes-repository.js';
 import { requireRole, requireSession } from '../middleware/auth-middleware.js';
+import {
+  createOfertaForEmergency,
+  listOwnOfertasForEmergency,
+} from '../ofertas/ofertas-repository.js';
 import { validateEmergencyPayload } from '../validate-emergency.js';
 import { validateLotesPayload } from '../validate-lote.js';
+import { validateOfertaPayload } from '../validate-oferta.js';
 
 const router = Router();
 
@@ -102,6 +107,46 @@ router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), a
       return res.status(error.status).json({ message: error.message });
     }
     return res.status(500).json({ message: 'No se pudo publicar la convocatoria.' });
+  }
+});
+
+// POST /api/emergencies/:emergencyId/ofertas — alta por parte de la ONG logueada
+router.post('/:emergencyId/ofertas', requireRole('representante_ong'), async (req, res) => {
+  const errors = validateOfertaPayload(req.body);
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ message: 'Datos de la oferta inválidos.', errors });
+  }
+
+  try {
+    const oferta = await createOfertaForEmergency(
+      req.params.emergencyId,
+      req.session.ongRef,
+      req.body,
+    );
+    return res.status(201).json(oferta);
+  } catch (error) {
+    console.error(error);
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'No se pudo registrar la oferta.' });
+  }
+});
+
+// GET /api/emergencies/:emergencyId/ofertas/mine — ofertas de la ONG logueada
+router.get('/:emergencyId/ofertas/mine', requireRole('representante_ong'), async (req, res) => {
+  try {
+    const ofertas = await listOwnOfertasForEmergency(
+      req.params.emergencyId,
+      req.session.ongRef,
+    );
+    return res.json(ofertas);
+  } catch (error) {
+    console.error(error);
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'No se pudieron obtener las ofertas.' });
   }
 });
 
