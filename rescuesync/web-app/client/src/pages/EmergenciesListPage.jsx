@@ -1,15 +1,11 @@
 import {
   Activity,
   AlertOctagon,
-  AlertTriangle,
   ArrowRight,
   Boxes,
   Calendar,
   CheckCircle2,
   Clock,
-  Compass,
-  FileSpreadsheet,
-  Filter,
   Flame,
   HelpCircle,
   MapPin,
@@ -19,8 +15,6 @@ import {
   Shield,
   ShieldAlert,
   SlidersHorizontal,
-  Sparkles,
-  TrendingUp,
   Users,
   Waves,
 } from 'lucide-react';
@@ -31,7 +25,7 @@ import Alert from '../components/ui/Alert.jsx';
 import Button from '../components/ui/Button.jsx';
 import MiniIncidentMap from '../components/ui/MiniIncidentMap.jsx';
 import { SEVERITY_LEVELS } from '../features/emergencies/emergency-constants.js';
-import { isMunicipalOperator } from '../lib/auth-roles.js';
+import { isMunicipalOperator, isRegionalCoordinator } from '../lib/auth-roles.js';
 import { listEmergencies } from '../services/emergency-service.js';
 
 const TYPE_CONFIG = {
@@ -88,6 +82,25 @@ const SEVERITY_PILLS = {
   },
 };
 
+const TYPE_TEXTURES = {
+  inundacion: 'water-flow-texture',
+  incendio: 'fire-flow-texture',
+};
+
+const SEVERITY_GLOWS = {
+  baja: 'radial-glow-baja',
+  media: 'radial-glow-media',
+  alta: 'radial-glow-alta',
+  critica: 'radial-glow-critica',
+};
+
+const CRITICAL_FOCUS = {
+  inundacion: 'Riesgo de anegamiento masivo, corte de suministros y aislamiento de familias.',
+  incendio: 'Propagación activa por vientos. Peligro inminente en interfase con viviendas.',
+  terremoto: 'Daños estructurales, búsqueda y rescate en estructuras colapsadas.',
+  otro: 'Atención inmediata de damnificados y logística de emergencia.',
+};
+
 function EmergenciesListPage() {
   const [emergencies, setEmergencies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -99,6 +112,7 @@ function EmergenciesListPage() {
   const outletContext = useOutletContext();
   const user = outletContext?.user;
   const canRegisterEmergency = isMunicipalOperator(user);
+  const canManageLotes = isRegionalCoordinator(user);
 
   const fetchList = () => {
     setLoading(true);
@@ -124,8 +138,7 @@ function EmergenciesListPage() {
     return { total, registradas, abiertas, afectados };
   }, [emergencies]);
 
-  const filteredEmergencies = useMemo(() => {
-    return emergencies.filter((item) => {
+  const filteredEmergencies = useMemo(() => emergencies.filter((item) => {
       const matchSearch =
         !search.trim() ||
         item.municipality?.toLowerCase().includes(search.toLowerCase()) ||
@@ -137,8 +150,7 @@ function EmergenciesListPage() {
       const matchSeverity = severityFilter === 'all' || item.severity === severityFilter;
 
       return matchSearch && matchStatus && matchSeverity;
-    });
-  }, [emergencies, search, statusFilter, severityFilter]);
+    }), [emergencies, search, statusFilter, severityFilter]);
 
   return (
     <div className="min-h-screen bg-tactical-grid text-slate-800 pb-20 font-sans">
@@ -486,13 +498,7 @@ function EmergenciesListPage() {
                       {/* Tipo de emergencia con textura de flujo heroico */}
                       <div className="flex items-center gap-2.5">
                         <span
-                          className={`flex h-11 px-3.5 items-center gap-2 rounded-2xl shadow-md text-white ${
-                            item.type === 'inundacion'
-                              ? 'water-flow-texture'
-                              : item.type === 'incendio'
-                                ? 'fire-flow-texture'
-                                : 'bg-slate-900'
-                          }`}
+                          className={`flex h-11 px-3.5 items-center gap-2 rounded-2xl shadow-md text-white ${TYPE_TEXTURES[item.type] || 'bg-slate-900'}`}
                         >
                           <TypeIcon className="h-4 w-4" />
                           <span className="text-xs font-black uppercase tracking-wider">
@@ -521,15 +527,7 @@ function EmergenciesListPage() {
                       {/* Pill de Severidad con Luz Radial Difuminada */}
                       <div className="relative flex items-center">
                         <div
-                          className={`absolute inset-0 -m-3 pointer-events-none rounded-full blur-xl opacity-60 ${
-                            item.severity === 'critica'
-                              ? 'radial-glow-critica'
-                              : item.severity === 'alta'
-                                ? 'radial-glow-alta'
-                                : item.severity === 'media'
-                                  ? 'radial-glow-media'
-                                  : 'radial-glow-baja'
-                          }`}
+                          className={`absolute inset-0 -m-3 pointer-events-none rounded-full blur-xl opacity-60 ${SEVERITY_GLOWS[item.severity] || SEVERITY_GLOWS.baja}`}
                         />
                         <span
                           className={`relative inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1 text-xs font-black uppercase tracking-wider shadow-xs ${severityPill.bg}`}
@@ -600,13 +598,7 @@ function EmergenciesListPage() {
                           Foco Crítico de Intervención
                         </span>
                         <p className="text-xs font-semibold leading-relaxed text-amber-950">
-                          {item.type === 'inundacion'
-                            ? 'Riesgo de anegamiento masivo, corte de suministros y aislamiento de familias.'
-                            : item.type === 'incendio'
-                              ? 'Propagación activa por vientos. Peligro inminente en interfase con viviendas.'
-                              : item.type === 'terremoto'
-                                ? 'Daños estructurales, búsqueda y rescate en estructuras colapsadas.'
-                                : 'Atención inmediata de damnificados y logística de emergencia.'}
+                          {CRITICAL_FOCUS[item.type] || CRITICAL_FOCUS.otro}
                         </p>
                       </div>
 
@@ -649,20 +641,24 @@ function EmergenciesListPage() {
                   {/* ══════════════════════════════════════════════════
                       BOTÓN DE ACCIÓN REDISEÑADO (MODERNO, CON VOLUMEN Y GRADIENTE)
                   ══════════════════════════════════════════════════ */}
-                  <div className="mt-6 pt-2">
-                    <Link
-                      to={`/emergencias/${item.id}/lotes`}
-                      className={`group/btn relative flex w-full items-center justify-center gap-2.5 rounded-2xl px-5 py-3.5 text-sm font-black shadow-md transition-all duration-200 ${
-                        isAbierta
-                          ? 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:shadow-lg'
-                          : 'gradient-sunset text-white glow-sunset hover:scale-[1.01] active:scale-[0.99]'
-                      }`}
-                    >
-                      <Boxes className="h-4 w-4" />
-                      <span>{isAbierta ? 'Ver Lotes Convocados' : 'Desglosar Lotes y Convocar'}</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
-                    </Link>
-                  </div>
+                  {canManageLotes && (
+                    <div className="mt-6 pt-2">
+                      <Link
+                        to={`/emergencias/${item.id}/lotes`}
+                        className={`group/btn relative flex w-full items-center justify-center gap-2.5 rounded-2xl px-5 py-3.5 text-sm font-black shadow-md transition-all duration-200 ${
+                          isAbierta
+                            ? 'border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:shadow-lg'
+                            : 'gradient-sunset text-white glow-sunset hover:scale-[1.01] active:scale-[0.99]'
+                        }`}
+                      >
+                        <Boxes className="h-4 w-4" />
+                        <span>
+                          {isAbierta ? 'Ver Lotes Convocados' : 'Desglosar Lotes y Convocar'}
+                        </span>
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
+                      </Link>
+                    </div>
+                  )}
                 </div>
               );
             })}

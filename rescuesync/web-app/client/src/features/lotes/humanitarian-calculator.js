@@ -21,9 +21,8 @@ export const SEVERITY_FACTORS = Object.freeze({
 /**
  * Opciones rápidas clásicas estáticas (cuando el modo per cápita está desactivado)
  */
-export function getClassicPresetsAndRange(res, currentQty = 1) {
+export function getClassicPresetsAndRange(res) {
   const d = res.defaultQty || 5;
-  const numQty = Number(currentQty) || 1;
 
   let basePresets = [1, 2, 5, 10, 20];
   let baseMax = 30;
@@ -213,9 +212,8 @@ export function calculateSuggestedQuantity(resourceId, people, severity, emergen
  * Genera presets rápidos adaptativos alrededor de la cantidad sugerida calculada (Q).
  * En vez de números fijos arbitrarios, ofrece múltiplos y submúltiplos coherentes.
  */
-export function generateAdaptivePresets(suggestedQty, currentQty = 1) {
+export function generateAdaptivePresets(suggestedQty) {
   const q = Math.max(1, Number(suggestedQty) || 10);
-  const cur = Math.max(1, Number(currentQty) || q);
 
   let rawMultipliers = [0.4, 0.7, 1.0, 1.4, 2.0];
   if (q <= 5) {

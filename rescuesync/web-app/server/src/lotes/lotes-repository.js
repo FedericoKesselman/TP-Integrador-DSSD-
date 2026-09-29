@@ -26,25 +26,34 @@ export async function saveLotesForEmergency(emergencyId, lotesList) {
       throw err;
     }
 
+    if (emgRes.rows[0].status !== 'registrada') {
+      const err = new Error(
+        'Los lotes no se pueden modificar después de publicar la convocatoria.',
+      );
+      err.status = 409;
+      throw err;
+    }
+
     // Limpiar lotes previos de esta emergencia para guardar la lista actualizada
     await client.query('DELETE FROM lotes WHERE emergency_id = $1', [emergencyId]);
 
-    const insertedLotes = [];
-    for (const lote of lotesList) {
-      const res = await client.query(
-        `INSERT INTO lotes (emergency_id, resource_type, unit, quantity_requested, notes)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [
-          emergencyId,
-          lote.resourceType.trim(),
-          lote.unit?.trim() || null,
-          Number(lote.quantityRequested),
-          lote.notes?.trim() || null,
-        ],
-      );
-      insertedLotes.push(rowToLote(res.rows[0]));
-    }
+    const insertedLotes = await Promise.all(
+      lotesList.map(async (lote) => {
+        const result = await client.query(
+          `INSERT INTO lotes (emergency_id, resource_type, unit, quantity_requested, notes)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [
+            emergencyId,
+            lote.resourceType.trim(),
+            lote.unit?.trim() || null,
+            Number(lote.quantityRequested),
+            lote.notes?.trim() || null,
+          ],
+        );
+        return rowToLote(result.rows[0]);
+      }),
+    );
 
     await client.query('COMMIT');
     return {

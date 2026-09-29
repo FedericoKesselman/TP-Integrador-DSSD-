@@ -10,24 +10,18 @@ import {
   publishConvocatoriaForEmergency,
   saveLotesForEmergency,
 } from '../lotes/lotes-repository.js';
+import { requireRole, requireSession } from '../middleware/auth-middleware.js';
 import { validateEmergencyPayload } from '../validate-emergency.js';
 import { validateLotesPayload } from '../validate-lote.js';
-import { resolveUserRole } from './auth-routes.js';
 
 const router = Router();
 
+// Todos los endpoints de emergencias requieren una sesión iniciada mediante Bonita.
+router.use(requireSession);
+
 // POST /api/emergencies — alta de una emergencia por parte del Operador
 // Municipal. Corresponde a la tarea BPM "Registrar Emergencia" (ver docs/api-contracts.md).
-router.post('/', async (req, res) => {
-  if (req.session?.username) {
-    const role = req.session.role || resolveUserRole(req.session.username);
-    if (role !== 'operador_municipal') {
-      return res.status(403).json({
-        message: 'Acceso denegado: solo los usuarios del Municipio pueden registrar emergencias.',
-      });
-    }
-  }
-
+router.post('/', requireRole('operador_municipal'), async (req, res) => {
   const errors = validateEmergencyPayload(req.body);
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ message: 'Datos inválidos', errors });
@@ -68,7 +62,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /api/emergencies/:emergencyId/lotes — desglose de lotes de recursos
-router.post('/:emergencyId/lotes', async (req, res) => {
+router.post('/:emergencyId/lotes', requireRole('coordinador_regional'), async (req, res) => {
   const errors = validateLotesPayload(req.body);
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ message: 'Datos de lotes inválidos.', errors });
@@ -98,7 +92,7 @@ router.get('/:emergencyId/lotes', async (req, res) => {
 });
 
 // POST /api/emergencies/:emergencyId/convocatoria — publica la convocatoria (pasa a convocatoria_abierta)
-router.post('/:emergencyId/convocatoria', async (req, res) => {
+router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), async (req, res) => {
   try {
     const result = await publishConvocatoriaForEmergency(req.params.emergencyId);
     return res.status(200).json(result);
@@ -112,4 +106,3 @@ router.post('/:emergencyId/convocatoria', async (req, res) => {
 });
 
 export default router;
-

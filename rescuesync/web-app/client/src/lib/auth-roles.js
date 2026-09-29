@@ -69,6 +69,10 @@ export function isMunicipalOperator(userOrUsername) {
   return resolveUserRole(userOrUsername) === ROLES.OPERADOR_MUNICIPAL;
 }
 
+export function isRegionalCoordinator(userOrUsername) {
+  return resolveUserRole(userOrUsername) === ROLES.COORDINADOR_REGIONAL;
+}
+
 export function getRoleLabel(userOrUsername) {
   const role = resolveUserRole(userOrUsername);
   return ROLE_LABELS[role] || 'Usuario';

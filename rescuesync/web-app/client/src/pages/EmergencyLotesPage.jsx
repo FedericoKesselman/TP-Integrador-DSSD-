@@ -1,12 +1,10 @@
 import {
-  Activity,
-  AlertOctagon,
   AlertTriangle,
   Anchor,
   ArrowLeft,
-  ArrowRight,
   Bed,
   BedDouble,
+  Box,
   Boxes,
   Calendar,
   Check,
@@ -21,17 +19,13 @@ import {
   FileText,
   Flame,
   Fuel,
-  Gauge,
-  Heart,
   HeartPulse,
-  HelpCircle,
   Layers,
   LifeBuoy,
   Lightbulb,
   MapPin,
   Minus,
   Package,
-  Phone,
   PhoneCall,
   Pill,
   Plus,
@@ -39,7 +33,6 @@ import {
   Save,
   Send,
   Shield,
-  ShieldAlert,
   ShieldCheck,
   Sliders,
   Sparkles,
@@ -78,10 +71,10 @@ import { getLotes, publishConvocatoria, saveLotes } from '../services/lote-servi
 // Mapa de iconos principales por categoría
 const CATEGORY_ICONS = {
   Heart: HeartPulse,
-  UtensilsCrossed: UtensilsCrossed,
-  Tent: Tent,
-  Shield: Shield,
-  Truck: Truck,
+  UtensilsCrossed,
+  Tent,
+  Shield,
+  Truck,
 };
 
 // Mapa de iconos específicos por recurso
@@ -114,6 +107,30 @@ const RESOURCE_ICONS = {
   radios: Radio,
   iluminacion: Lightbulb,
   herramientas: Wrench,
+};
+
+const TYPE_HEADER_STYLES = {
+  inundacion: 'water-flow-texture shadow-sky-950/20',
+  incendio: 'fire-flow-texture shadow-rose-950/20',
+};
+
+const TYPE_HEADER_ICONS = {
+  inundacion: Waves,
+  incendio: Flame,
+};
+
+const SEVERITY_GLOWS = {
+  baja: 'radial-glow-baja',
+  media: 'radial-glow-media',
+  alta: 'radial-glow-alta',
+  critica: 'radial-glow-critica',
+};
+
+const SEVERITY_BADGES = {
+  baja: 'bg-emerald-50/95 text-emerald-950 border-emerald-300 ring-2 ring-emerald-500/20',
+  media: 'bg-amber-50/95 text-amber-950 border-amber-300 ring-2 ring-amber-500/20',
+  alta: 'bg-orange-50/95 text-orange-950 border-orange-300 ring-2 ring-orange-500/20',
+  critica: 'bg-rose-50/95 text-rose-950 border-rose-300 ring-2 ring-rose-500/20',
 };
 
 // Configuración de hover dinámico por categoría
@@ -236,22 +253,25 @@ function EmergencyLotesPage() {
 
         if (lotesData && lotesData.length > 0) {
           const rebuilt = {};
-          for (const lote of lotesData) {
-            for (const cat of RESOURCE_CATEGORIES) {
-              const found = cat.resources.find(
-                (r) => r.label === lote.resourceType || r.id === lote.resourceType,
-              );
-              if (found) {
-                if (!rebuilt[cat.id]) rebuilt[cat.id] = {};
-                rebuilt[cat.id][found.id] = {
-                  selected: true,
-                  qty: lote.quantityRequested,
-                  notes: lote.notes || '',
-                };
-                break;
-              }
-            }
-          }
+          lotesData.forEach((lote) => {
+            const category = RESOURCE_CATEGORIES.find((cat) =>
+              cat.resources.some(
+                (resource) =>
+                  resource.label === lote.resourceType || resource.id === lote.resourceType,
+              ),
+            );
+            if (!category) return;
+
+            const resource = category.resources.find(
+              (item) => item.label === lote.resourceType || item.id === lote.resourceType,
+            );
+            if (!rebuilt[category.id]) rebuilt[category.id] = {};
+            rebuilt[category.id][resource.id] = {
+              selected: true,
+              qty: lote.quantityRequested,
+              notes: lote.notes || '',
+            };
+          });
           setSelections(rebuilt);
           const firstWithLotes = RESOURCE_CATEGORIES.find(
             (c) => rebuilt[c.id] && Object.values(rebuilt[c.id]).some((r) => r.selected),
@@ -316,7 +336,7 @@ function EmergencyLotesPage() {
 
     const newSelections = { ...selections };
 
-    for (const item of criticalList) {
+    criticalList.forEach((item) => {
       if (!newSelections[item.categoryId]) {
         newSelections[item.categoryId] = {};
       }
@@ -331,7 +351,7 @@ function EmergencyLotesPage() {
         qty: calculatedQty,
         notes: newSelections[item.categoryId][item.resourceId]?.notes || '',
       };
-    }
+    });
 
     setSelections(newSelections);
 
@@ -352,7 +372,10 @@ function EmergencyLotesPage() {
     const parsed = Number(newQty);
     setSelections((prev) => {
       const catState = { ...(prev[catId] || {}) };
-      catState[resId] = { ...catState[resId], qty: isNaN(parsed) ? 1 : Math.max(1, parsed) };
+      catState[resId] = {
+        ...catState[resId],
+        qty: Number.isNaN(parsed) ? 1 : Math.max(1, parsed),
+      };
       return { ...prev, [catId]: catState };
     });
   };
@@ -372,26 +395,24 @@ function EmergencyLotesPage() {
     return Object.values(catState).filter((r) => r.selected).length;
   };
 
-  const selectedLotes = useMemo(() => {
-    const result = [];
-    for (const cat of RESOURCE_CATEGORIES) {
+  const selectedLotes = useMemo(
+    () =>
+      RESOURCE_CATEGORIES.flatMap((cat) => {
       const catState = selections[cat.id];
-      if (catState) {
-        for (const res of cat.resources) {
-          if (catState[res.id]?.selected) {
-            result.push({
+        if (!catState) return [];
+
+        return cat.resources
+          .filter((res) => catState[res.id]?.selected)
+          .map((res) => ({
               categoryId: cat.id,
               resourceType: res.label,
               quantityRequested: catState[res.id].qty ?? res.defaultQty,
               unit: res.unit,
               notes: catState[res.id].notes ?? '',
-            });
-          }
-        }
-      }
-    }
-    return result;
-  }, [selections]);
+          }));
+      }),
+    [selections],
+  );
 
   const totalLotes = selectedLotes.length;
   const totalUnidades = selectedLotes.reduce((sum, l) => sum + (l.quantityRequested || 0), 0);
@@ -466,6 +487,10 @@ function EmergencyLotesPage() {
   })();
 
   const occurredDate = new Date(emergency.occurredAt || emergency.createdAt);
+  const EmergencyTypeIcon = TYPE_HEADER_ICONS[emergency.type] || AlertTriangle;
+  const typeHeaderStyle = TYPE_HEADER_STYLES[emergency.type] || 'bg-slate-900 shadow-slate-900/20';
+  const severityGlow = SEVERITY_GLOWS[emergency.severity] || SEVERITY_GLOWS.baja;
+  const severityBadge = SEVERITY_BADGES[emergency.severity] || SEVERITY_BADGES.baja;
 
   return (
     <div className="min-h-screen bg-tactical-grid text-slate-800 pb-32 font-sans">
@@ -525,22 +550,10 @@ function EmergencyLotesPage() {
             <div className="flex flex-wrap items-center gap-5">
               {/* COMPONENTE LLAMATIVO CON TEXTURA DE CATÁSTROFE */}
               <div
-                className={`relative flex items-center gap-3.5 rounded-2xl px-6 py-3.5 shadow-lg text-white overflow-hidden ${
-                  emergency.type === 'inundacion'
-                    ? 'water-flow-texture shadow-sky-950/20'
-                    : emergency.type === 'incendio'
-                      ? 'fire-flow-texture shadow-rose-950/20'
-                      : 'bg-slate-900 shadow-slate-900/20'
-                }`}
+                className={`relative flex items-center gap-3.5 rounded-2xl px-6 py-3.5 shadow-lg text-white overflow-hidden ${typeHeaderStyle}`}
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/20 backdrop-blur-md text-white shadow-inner">
-                  {emergency.type === 'inundacion' ? (
-                    <Waves className="h-6 w-6 animate-pulse" />
-                  ) : emergency.type === 'incendio' ? (
-                    <Flame className="h-6 w-6 animate-pulse" />
-                  ) : (
-                    <AlertTriangle className="h-6 w-6" />
-                  )}
+                  <EmergencyTypeIcon className="h-6 w-6 animate-pulse" />
                 </span>
                 <div>
                   <span className="block text-[10px] font-black uppercase tracking-widest text-white/80">
@@ -558,26 +571,10 @@ function EmergencyLotesPage() {
               <div className="relative flex items-center py-2 px-3">
                 {/* Halo de luz radial difuminada suave */}
                 <div
-                  className={`absolute inset-0 -m-5 pointer-events-none rounded-full blur-2xl opacity-75 ${
-                    emergency.severity === 'critica'
-                      ? 'radial-glow-critica'
-                      : emergency.severity === 'alta'
-                        ? 'radial-glow-alta'
-                        : emergency.severity === 'media'
-                          ? 'radial-glow-media'
-                          : 'radial-glow-baja'
-                  }`}
+                  className={`absolute inset-0 -m-5 pointer-events-none rounded-full blur-2xl opacity-75 ${severityGlow}`}
                 />
                 <div
-                  className={`relative flex items-center gap-2.5 rounded-full px-5 py-2.5 text-xs font-black uppercase tracking-wider border shadow-md ${
-                    emergency.severity === 'critica'
-                      ? 'bg-rose-50/95 text-rose-950 border-rose-300 ring-2 ring-rose-500/20'
-                      : emergency.severity === 'alta'
-                        ? 'bg-orange-50/95 text-orange-950 border-orange-300 ring-2 ring-orange-500/20'
-                        : emergency.severity === 'media'
-                          ? 'bg-amber-50/95 text-amber-950 border-amber-300 ring-2 ring-amber-500/20'
-                          : 'bg-emerald-50/95 text-emerald-950 border-emerald-300 ring-2 ring-emerald-500/20'
-                  }`}
+                  className={`relative flex items-center gap-2.5 rounded-full px-5 py-2.5 text-xs font-black uppercase tracking-wider border shadow-md ${severityBadge}`}
                 >
                   <span
                     className={`h-3 w-3 rounded-full ${
@@ -762,7 +759,7 @@ function EmergencyLotesPage() {
                   severity={emergency.severity}
                   height="h-60"
                   zoom={12}
-                  interactive={true}
+                  interactive
                 />
               </div>
             </div>
@@ -1101,19 +1098,21 @@ function EmergencyLotesPage() {
                               {presets.map((p) => {
                                 const isActive = Number(qty) === p;
                                 const isSuggested = IS_HUMANITARIAN_CALC_ENABLED && p === suggested;
+                                let presetStyle =
+                                  'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100 shadow-2xs';
+                                if (isSuggested) {
+                                  presetStyle =
+                                    'border-2 border-amber-400 bg-amber-50/90 text-amber-950 font-black shadow-xs hover:bg-amber-100';
+                                }
+                                if (isActive) presetStyle = hoverTheme.pillActive;
+
                                 return (
                                   <button
                                     key={p}
                                     type="button"
                                     disabled={isPublished}
                                     onClick={() => updateQty(cat.id, res.id, p)}
-                                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                      isActive
-                                        ? hoverTheme.pillActive
-                                        : isSuggested
-                                          ? 'border-2 border-amber-400 bg-amber-50/90 text-amber-950 font-black shadow-xs hover:bg-amber-100'
-                                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-100 shadow-2xs'
-                                    }`}
+                                    className={`rounded-full px-2.5 py-0.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${presetStyle}`}
                                   >
                                     {isSuggested && !isActive && (
                                       <Sparkles className="h-2.5 w-2.5 text-amber-500 fill-amber-400" />
@@ -1284,7 +1283,7 @@ function EmergencyLotesPage() {
                   <div
                     key={cat.id}
                     className={`rounded-3xl border-2 p-6 transition-all shadow-xs ${hoverTheme.cardBg}`}
-                    style={{ borderColor: hoverTheme.accentColor + '55' }}
+                    style={{ borderColor: `${hoverTheme.accentColor  }55` }}
                   >
                     <div className="mb-4 flex items-center justify-between border-b border-slate-200/80 pb-3">
                       <div className="flex items-center gap-3">
@@ -1306,7 +1305,7 @@ function EmergencyLotesPage() {
                       <span
                         className="rounded-full px-3 py-1 text-xs font-black uppercase tracking-wider shadow-2xs"
                         style={{
-                          backgroundColor: hoverTheme.accentColor + '18',
+                          backgroundColor: `${hoverTheme.accentColor  }18`,
                           color: hoverTheme.accentColor,
                         }}
                       >
@@ -1345,7 +1344,7 @@ function EmergencyLotesPage() {
                               <span
                                 className="inline-block text-base font-black px-2.5 py-0.5 rounded-lg shadow-2xs"
                                 style={{
-                                  backgroundColor: hoverTheme.accentColor + '15',
+                                  backgroundColor: `${hoverTheme.accentColor  }15`,
                                   color: hoverTheme.accentColor,
                                 }}
                               >

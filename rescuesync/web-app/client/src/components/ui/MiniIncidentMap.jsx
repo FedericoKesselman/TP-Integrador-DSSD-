@@ -1,9 +1,9 @@
 import 'leaflet/dist/leaflet.css';
 
 import L from 'leaflet';
-import { Compass, ExternalLink, MapPin, ZoomIn, ZoomOut } from 'lucide-react';
+import { Compass, MapPin, ZoomIn, ZoomOut } from 'lucide-react';
 import PropTypes from 'prop-types';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 
 // Coordenadas de referencia para municipios comunes en Argentina si lat/lon son nulos
 const FALLBACK_COORDS = {
@@ -28,8 +28,8 @@ const SEVERITY_PIN_COLORS = {
 };
 
 function MiniIncidentMap({
-  latitude,
-  longitude,
+  latitude = null,
+  longitude = null,
   municipality = '',
   province = '',
   severity = 'media',
@@ -40,11 +40,15 @@ function MiniIncidentMap({
 }) {
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
 
   // Resolver coordenadas reales o fallback
   const resolvedCoords = useMemo(() => {
-    if (typeof latitude === 'number' && typeof longitude === 'number' && !isNaN(latitude) && !isNaN(longitude)) {
+    if (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      !Number.isNaN(latitude) &&
+      !Number.isNaN(longitude)
+    ) {
       return { lat: latitude, lon: longitude };
     }
     const muniKey = (municipality || '').trim().toLowerCase();
@@ -61,7 +65,7 @@ function MiniIncidentMap({
   const pinColor = SEVERITY_PIN_COLORS[severity] || '#0284c7';
 
   useEffect(() => {
-    if (!mapContainerRef.current) return;
+    if (!mapContainerRef.current) return undefined;
 
     // Si ya existe instancia previa, limpiarla
     if (mapInstanceRef.current) {
@@ -105,7 +109,6 @@ function MiniIncidentMap({
       L.marker([resolvedCoords.lat, resolvedCoords.lon], { icon: radarIcon }).addTo(map);
 
       mapInstanceRef.current = map;
-      setMapReady(true);
 
       // Invalidate size después del render inicial
       setTimeout(() => {

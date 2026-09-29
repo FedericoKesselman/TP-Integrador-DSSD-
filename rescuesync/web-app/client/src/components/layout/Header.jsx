@@ -5,7 +5,7 @@ import { Link, NavLink } from 'react-router-dom';
 
 import { isMunicipalOperator, getRoleLabel } from '../../lib/auth-roles.js';
 
-function Header({ user, userName, onLogout }) {
+function Header({ user = null, userName = '', onLogout }) {
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const currentUserName = userName || user?.username || '';
   const canRegisterEmergency = isMunicipalOperator(user || currentUserName);
@@ -111,11 +111,6 @@ Header.propTypes = {
   }),
   userName: PropTypes.string,
   onLogout: PropTypes.func.isRequired,
-};
-
-Header.defaultProps = {
-  user: null,
-  userName: '',
 };
 
 export default Header;

@@ -1,3 +1,5 @@
+/* Event handlers are intentionally passed to the login and layout components. */
+/* eslint-disable react/jsx-no-bind */
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 
@@ -8,7 +10,7 @@ import EmergencyLotesPage from './pages/EmergencyLotesPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import { getCurrentUser, logout } from './services/auth-service.js';
 
-import { isMunicipalOperator } from './lib/auth-roles.js';
+import { isMunicipalOperator, isRegionalCoordinator } from './lib/auth-roles.js';
 
 // Usuarios y roles viven en la organización de Bonita (ver roadmapfase2.md).
 // Al arrancar se consulta /api/auth/me: sin sesión, todas las rutas llevan a /login.
@@ -40,6 +42,7 @@ function App() {
   }
 
   const canRegisterEmergency = isMunicipalOperator(user);
+  const canManageLotes = isRegionalCoordinator(user);
 
   return (
     <Routes>
@@ -70,7 +73,12 @@ function App() {
             )
           }
         />
-        <Route path="/emergencias/:id/lotes" element={<EmergencyLotesPage />} />
+        <Route
+          path="/emergencias/:id/lotes"
+          element={
+            canManageLotes ? <EmergencyLotesPage /> : <Navigate to="/emergencias" replace />
+          }
+        />
       </Route>
     </Routes>
   );
