@@ -2,6 +2,7 @@ import { CircleCheck, Plus } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useEffect, useRef } from 'react';
 
+import Alert from '../../../components/ui/Alert.jsx';
 import Button from '../../../components/ui/Button.jsx';
 import { emergencyValuesShape } from '../emergency-prop-types.js';
 import EmergencyPreview from './EmergencyPreview.jsx';
@@ -59,6 +60,12 @@ function EmergencyConfirmation({ emergency, values, onRegisterAnother }) {
           </div>
         </dl>
 
+        {emergency.bonitaWarning && (
+          <div className="mt-4">
+            <Alert tone="warning">{emergency.bonitaWarning}</Alert>
+          </div>
+        )}
+
         <div className="mt-6">
           <Button size="lg" icon={Plus} onClick={onRegisterAnother}>
             Registrar otra emergencia
@@ -76,6 +83,7 @@ EmergencyConfirmation.propTypes = {
     id: PropTypes.string.isRequired,
     status: PropTypes.string.isRequired,
     bonitaCaseId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    bonitaWarning: PropTypes.string,
   }).isRequired,
   values: emergencyValuesShape.isRequired,
   onRegisterAnother: PropTypes.func.isRequired,

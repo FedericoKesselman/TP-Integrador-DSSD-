@@ -30,3 +30,28 @@ export async function logout(session) {
     headers: { Cookie: `JSESSIONID=${session.jsessionId}` },
   });
 }
+
+// Inicia una instancia del proceso (POST /API/bpm/process/{id}/instantiation).
+// `variables` es el body de la instanciación: Bonita lo valida contra el
+// contrato de inicio del proceso, así que las claves tienen que coincidir con
+// los inputs de ese contrato. Devuelve el caseId como string.
+export async function startCase(session, processId, variables) {
+  if (!session) throw new Error('No hay sesión de Bonita.');
+  if (!processId) throw new Error('Falta BONITA_PROCESS_ID.');
+
+  const response = await fetch(`${BONITA_URL}/API/bpm/process/${processId}/instantiation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Bonita-API-Token': session.apiToken,
+      Cookie: `JSESSIONID=${session.jsessionId}; X-Bonita-API-Token=${session.apiToken}`,
+    },
+    body: JSON.stringify(variables),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Bonita no pudo iniciar el caso: ${response.status} ${await response.text()}`);
+  }
+  const { caseId } = await response.json();
+  return String(caseId);
+}

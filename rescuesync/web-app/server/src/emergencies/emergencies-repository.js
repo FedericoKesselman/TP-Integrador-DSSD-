@@ -87,10 +87,18 @@ export async function listEmergencies() {
   return rows.map(rowToEmergency);
 }
 
+// Guarda el id del caso de Bonita una vez iniciado el proceso (Fase 5).
+export async function setBonitaCaseId(id, caseId) {
+  const { rows } = await pool.query(
+    'UPDATE emergencies SET bonita_case_id = $1 WHERE id = $2 RETURNING *',
+    [caseId, id],
+  );
+  return rowToEmergency(rows[0]);
+}
+
 // Obtener una emergencia por su ID
 export async function getEmergencyById(id) {
   const { rows } = await pool.query('SELECT * FROM emergencies WHERE id = $1', [id]);
   if (rows.length === 0) return null;
   return rowToEmergency(rows[0]);
 }
-
