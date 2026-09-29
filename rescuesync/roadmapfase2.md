@@ -147,8 +147,8 @@ componentes asociados); falta el otro lado.*
   endpoint real que tocara `shared/` + Postgres desde dentro de Docker
   hasta esta fase) y quedan resueltos en `web-app/docker-compose.yml`
   para todo el equipo.
-- Pendiente para más adelante: `bonitaCaseId` queda `null` a propósito —
-  se completa en la Fase 5.
+- `bonitaCaseId` quedaba `null` a propósito en esta fase — resuelto en la
+  Fase 5.
 
 ## Fase 3 — Lotes (Centro Coordinador Regional) ✅ Implementada
 
@@ -209,19 +209,38 @@ componentes asociados); falta el otro lado.*
 
 ## Fase 5 — Integración con Bonita: iniciar y completar tareas
 
-19. Modelar (aunque sea preliminar) el proceso en Bonita si todavía no está
+19. [x] Modelar (aunque sea preliminar) el proceso en Bonita si todavía no está
     desde la Entrega 1, o retomar el ya entregado.
-20. Al registrarse una emergencia (endpoint de la Fase 2), llamar a la API
+20. [x] Al registrarse una emergencia (endpoint de la Fase 2), llamar a la API
     de Bonita para **iniciar la instancia del proceso**, seteando las
     variables de proceso iniciales, usando la sesión obtenida en la
     Fase 1.
-21. Guardar el `bonitaCaseId` devuelto en la tabla `emergencies` y
+21. [x] Guardar el `bonitaCaseId` devuelto en la tabla `emergencies` y
     mostrarlo en la confirmación (el campo ya existe en el frontend, solo
     falta que deje de ser `null`).
 22. Implementar la llamada para **completar tareas humanas** en Bonita
     desde la app (por ejemplo, cuando el Coordinador publica la
     convocatoria de lotes), usando el login service para autenticar esa
     acción.
+
+**Cómo quedó (puntos 19–21; el 22 sigue pendiente):**
+- Server: `bonita/bonita-client.js` suma `getProcessId` (busca el id del
+  proceso por nombre entre los procesos desplegados y activos; con varias
+  versiones toma la desplegada más recientemente) y `startCase`, que inicia
+  el caso con la sesión de Bonita del usuario logueado. El nombre del
+  proceso sale de `BONITA_PROCESS_NAME` (default `Gestionar Emergencia`);
+  no hay ningún id en el `.env`, así que redesplegar en Bonita Studio no
+  requiere tocar nada.
+- `POST /api/emergencies` inicia el caso después de guardar la emergencia y
+  guarda el `bonitaCaseId` en la fila. Si Bonita falla, la emergencia queda
+  guardada igual y la respuesta trae `bonitaWarning` (con `bonitaCaseId`
+  en `null`). El cliente muestra `Caso N` en la confirmación, o el aviso.
+- En Bonita (repo aparte): el contrato de inicio del proceso tiene el input
+  `emergencyID`, mapeado a la variable `emergenciaId`. El nombre del input
+  tiene que coincidir exactamente con lo que manda el server (distingue
+  mayúsculas): `emergencyID`.
+- Pendiente: reintento del caso cuando falló el inicio, y completar tareas
+  humanas desde la app (punto 22).
 
 ## Fase 6 — Cierre de etapa
 

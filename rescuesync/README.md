@@ -77,8 +77,9 @@ Navegador ──► server Express (/api/auth/*) ──► Bonita (/bonita/login
 - El navegador **nunca** habla con Bonita ni ve sus cookies: el server las
   guarda en la sesión del usuario (`express-session`, en memoria) y le da al
   navegador solo su propia cookie `connect.sid`.
-- Esa sesión de Bonita es la que el server va a reutilizar en la Fase 5
-  para iniciar casos y completar tareas en nombre del usuario.
+- Esa sesión de Bonita es la que el server reutiliza para iniciar casos
+  (ver "Inicio del caso en Bonita") y, más adelante, completar tareas en
+  nombre del usuario.
 - La sesión vive en memoria: si se reinicia el server, hay que volver a
   loguearse.
 - Dentro de Docker, `localhost` es el propio contenedor: por eso
@@ -87,6 +88,22 @@ Navegador ──► server Express (/api/auth/*) ──► Bonita (/bonita/login
   cosas desde la terminal.
 
 Endpoints: ver [`docs/api-contracts.md`](./docs/api-contracts.md#autenticación).
+
+### Inicio del caso en Bonita
+
+Al crear una emergencia (`POST /api/emergencies`) el server inicia una
+instancia del proceso en Bonita y guarda el `bonitaCaseId`. El id del
+proceso **no se configura**: el server lo busca solo por nombre entre los
+procesos desplegados y activos (`BONITA_PROCESS_ID` ya no existe).
+
+- `BONITA_PROCESS_NAME` (en `web-app/server/.env`, opcional): nombre del
+  proceso. Default `Gestionar Emergencia`.
+- Después de redesplegar en Bonita Studio **no hay que tocar ningún `.env`**.
+- El proceso tiene que estar **desplegado y activo** en Bonita. Si no lo
+  está, o Bonita no responde, la emergencia se guarda igual pero el caso no
+  se inicia y la respuesta trae `bonitaWarning`.
+- El contrato de inicio del proceso tiene que tener el input `emergencyID`
+  (distingue mayúsculas).
 
 ## Después de hacer `git pull`
 

@@ -37,7 +37,7 @@ router.post('/', requireRole('operador_municipal'), async (req, res) => {
   try {
     const emergency = await insertEmergency(req.body);
     try {
-      const caseId = await startCase(req.session.bonita, process.env.BONITA_PROCESS_ID, {
+      const caseId = await startCase(req.session.bonita, {
         emergencyID: emergency.id,
       });
       return res.status(201).json(await setBonitaCaseId(emergency.id, caseId));
