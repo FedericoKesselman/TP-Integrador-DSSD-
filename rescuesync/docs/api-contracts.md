@@ -13,6 +13,10 @@ manda automáticamente en cada pedido. Implementado en
 `server/src/routes/auth-routes.js` y `server/src/bonita/bonita-client.js`;
 el cliente los usa desde `client/src/services/auth-service.js`.
 
+El `role` y el `groupPath` salen de la membresía del usuario en la
+organización de Bonita (se consultan en el login y se guardan en la sesión).
+`requireRole` los usa para devolver `403` en las acciones no permitidas.
+
 ### `POST /api/auth/login`
 
 **Request body**
@@ -23,9 +27,10 @@ el cliente los usa desde `client/src/services/auth-service.js`.
 
 | Respuesta | Cuándo | Body |
 |---|---|---|
-| `200 OK` + `Set-Cookie: connect.sid` | Bonita aceptó las credenciales | `{ "username": "OperadorM" }` |
+| `200 OK` + `Set-Cookie: connect.sid` | Bonita aceptó las credenciales | `{ "username": "OperadorM", "role": "operador_municipal", "groupPath": "/rescuesync/municipios/la-plata" }` |
 | `400 Bad Request` | falta `username` o `password` | `{ "message": "Usuario y contraseña son obligatorios." }` |
 | `401 Unauthorized` | Bonita rechazó las credenciales | `{ "message": "Usuario o contraseña incorrectos." }` |
+| `403 Forbidden` | el usuario no tiene un rol de la app en Bonita | `{ "message": "Tu usuario no tiene un rol habilitado en RescueSync." }` |
 | `502 Bad Gateway` | Bonita no respondió (Studio cerrado, URL mal) | `{ "message": "No se pudo conectar con Bonita." }` |
 
 ### `GET /api/auth/me`
@@ -35,7 +40,7 @@ sesión sobrevive a un F5).
 
 | Respuesta | Cuándo | Body |
 |---|---|---|
-| `200 OK` | hay sesión | `{ "username": "OperadorM" }` |
+| `200 OK` | hay sesión | `{ "username", "role", "groupPath" }` (igual que el login) |
 | `401 Unauthorized` | no hay sesión o expiró | `{ "message": "No hay sesión iniciada." }` |
 
 ### `POST /api/auth/logout`

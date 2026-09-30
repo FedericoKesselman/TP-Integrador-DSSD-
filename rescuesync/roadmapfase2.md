@@ -86,8 +86,10 @@ base que después cambia.*
   redirige a `/login`), usuario y botón "Salir" (con confirmación) en el
   `Header`.
 - Contratos en `docs/api-contracts.md`; cómo levantarlo en el `README.md`.
-- Pendiente para más adelante: el rol del usuario (membresías de Bonita)
-  todavía no se consulta; hará falta para el RBAC de las próximas entregas.
+- Rol del usuario: en el login el server consulta las membresías del
+  usuario en Bonita (`getUserProfile` en `bonita-client.js`) y guarda
+  `role` y `groupPath` en la sesión. El cliente usa el `role` que devuelven
+  `/login` y `/me`, sin calcularlo. Un usuario sin rol de la app recibe `403`.
 
 ## Fase 2 — Emergencias: conectar lo ya construido ✅ Implementada
 

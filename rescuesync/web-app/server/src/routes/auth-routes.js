@@ -1,42 +1,8 @@
 import { Router } from 'express';
 
-import { login, logout } from '../bonita/bonita-client.js';
+import { getUserProfile, login, logout } from '../bonita/bonita-client.js';
 
 const router = Router();
-
-export function resolveUserRole(username) {
-  if (!username) return null;
-  const normalized = String(username).trim().toLowerCase();
-  if (
-    normalized.startsWith('operador') ||
-    normalized.includes('municip') ||
-    normalized.includes('la-plata')
-  ) {
-    return 'operador_municipal';
-  }
-  if (
-    normalized.startsWith('coordinador') ||
-    normalized.includes('centro') ||
-    normalized.includes('regional')
-  ) {
-    return 'coordinador_regional';
-  }
-  if (
-    normalized.includes('ong') ||
-    normalized.includes('rescatistas') ||
-    normalized.includes('solidarias')
-  ) {
-    return 'representante_ong';
-  }
-  if (
-    normalized.includes('direccion') ||
-    normalized.includes('dirección') ||
-    normalized.includes('auditor')
-  ) {
-    return 'auditor';
-  }
-  return 'coordinador_regional';
-}
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -50,12 +16,22 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Usuario o contraseña incorrectos.' });
     }
 
-    const role = resolveUserRole(username);
-    // Guardamos la sesión de Bonita del lado del server
-    req.session.bonita = bonitaSession; // se guarda en la memoria del server
+    // El rol sale de la organización de Bonita (membresías del usuario).
+    const profile = await getUserProfile(bonitaSession);
+    if (!profile.role) {
+      await logout(bonitaSession).catch((error) => console.error(error));
+      return res
+        .status(403)
+        .json({ message: 'Tu usuario no tiene un rol habilitado en RescueSync.' });
+    }
+
+    // Guardamos la sesión de Bonita y el perfil del lado del server
+    req.session.bonita = bonitaSession;
     req.session.username = username;
-    req.session.role = role;
-    return res.json({ username, role });
+    req.session.userId = profile.userId;
+    req.session.role = profile.role;
+    req.session.groupPath = profile.groupPath;
+    return res.json({ username, role: profile.role, groupPath: profile.groupPath });
   } catch (error) {
     console.error(error);
     return res.status(502).json({ message: 'No se pudo conectar con Bonita.' });
@@ -66,8 +42,8 @@ router.get('/me', (req, res) => {
   if (!req.session.username) {
     return res.status(401).json({ message: 'No hay sesión iniciada.' });
   }
-  const role = req.session.role || resolveUserRole(req.session.username);
-  return res.json({ username: req.session.username, role });
+  const { username, role, groupPath } = req.session;
+  return res.json({ username, role, groupPath });
 });
 
 router.post('/logout', async (req, res) => {
