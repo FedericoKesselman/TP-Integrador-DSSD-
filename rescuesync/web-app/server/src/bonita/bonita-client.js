@@ -193,5 +193,6 @@ export async function getUserProfile(session) {
     userId,
     role: membership?.role_id.name ?? null,
     groupPath: membership?.group_id.path ?? null,
+    groupName: membership?.group_id.name ?? null,
   };
 }

@@ -27,7 +27,7 @@ organización de Bonita (se consultan en el login y se guardan en la sesión).
 
 | Respuesta | Cuándo | Body |
 |---|---|---|
-| `200 OK` + `Set-Cookie: connect.sid` | Bonita aceptó las credenciales | `{ "username": "OperadorM", "role": "operador_municipal", "groupPath": "/rescuesync/municipios/la-plata" }` |
+| `200 OK` + `Set-Cookie: connect.sid` | Bonita aceptó las credenciales | `{ "username": "OperadorM", "role": "operador_municipal", "groupPath": "/rescuesync/municipios/la-plata", "ongRef": null }` |
 | `400 Bad Request` | falta `username` o `password` | `{ "message": "Usuario y contraseña son obligatorios." }` |
 | `401 Unauthorized` | Bonita rechazó las credenciales | `{ "message": "Usuario o contraseña incorrectos." }` |
 | `403 Forbidden` | el usuario no tiene un rol de la app en Bonita | `{ "message": "Tu usuario no tiene un rol habilitado en RescueSync." }` |
@@ -40,8 +40,12 @@ sesión sobrevive a un F5).
 
 | Respuesta | Cuándo | Body |
 |---|---|---|
-| `200 OK` | hay sesión | `{ "username", "role", "groupPath" }` (igual que el login) |
+| `200 OK` | hay sesión | `{ "username", "role", "groupPath", "ongRef" }` (igual que el login) |
 | `401 Unauthorized` | no hay sesión o expiró | `{ "message": "No hay sesión iniciada." }` |
+
+`ongRef` solo tiene valor cuando el usuario logueado es una ONG: es el nombre
+de su grupo en Bonita y se usa para asociar la sesión con `ongs.bonita_org_ref`;
+no reemplaza la autenticación ni define credenciales locales.
 
 ### `POST /api/auth/logout`
 
@@ -300,16 +304,29 @@ Corresponden a las tablas `ofertas`, `oferta_ongs` (consorcio) y
 `oferta_lotes` (qué cubre cada oferta y con qué cantidad). Las cargan las
 **ONGs**, mientras la convocatoria está abierta.
 
+Para el alcance mínimo de la Entrega 2, la ONG que presenta la oferta se
+resuelve desde la sesión de Bonita del usuario logueado (`representante_ong`).
+La aplicación no crea usuarios propios ni recibe credenciales locales: solo
+vincula esa sesión con una fila de dominio en `ongs` mediante
+`ongs.bonita_org_ref`. Los consorcios quedan soportados por el modelo
+(`oferta_ongs`), pero pueden cargarse de forma simplificada más adelante sin
+cambiar las tablas principales.
+
 ### `POST /api/emergencies/:emergencyId/ofertas`
 
-Alta de una oferta. `ongIds` acepta uno o varios ids para modelar consorcios
-(varias ONGs asociándose en una misma oferta).
+Alta de una oferta por parte de la ONG logueada. El backend asocia la oferta
+a la ONG vinculada con la sesión de Bonita, por lo que el cliente no envía
+`ongIds` en el flujo mínimo de esta entrega.
+
+El modelo conserva soporte para consorcios: `oferta_ongs` permite asociar
+una o varias ONGs a la misma oferta. Si en una etapa posterior se habilita
+la carga explícita de consorcios desde la UI, puede reintroducirse `ongIds`
+en el request sin cambiar la estructura de la base.
 
 **Request body**
 
 ```json
 {
-  "ongIds": ["uuid-ong-1", "uuid-ong-2"],
   "observations": "Podemos cubrir también transporte si hace falta.",
   "items": [
     { "loteId": "uuid-lote-1", "quantityOffered": 3, "notes": null }
@@ -319,7 +336,6 @@ Alta de una oferta. `ongIds` acepta uno o varios ids para modelar consorcios
 
 | Campo | Tipo | Requerido | Reglas |
 |---|---|---|---|
-| `ongIds` | string[] (uuid) | sí | al menos 1 id de ONG existente |
 | `observations` | string \| null | no | |
 | `items` | array | sí | al menos 1 item |
 | `items[].loteId` | string (uuid) | sí | debe pertenecer a la misma emergencia |
@@ -334,19 +350,29 @@ Alta de una oferta. `ongIds` acepta uno o varios ids para modelar consorcios
   "emergencyId": "uuid",
   "status": "registrada",
   "observations": "...",
-  "ongs": [{ "id": "uuid-ong-1", "name": "Cruz Roja Argentina", "role": null }],
+  "ongs": [{ "id": "uuid-ong-1", "name": "Cruz Roja Argentina", "role": "principal" }],
   "items": [{ "id": "uuid", "loteId": "uuid-lote-1", "quantityOffered": 3, "notes": null }],
   "createdAt": "2026-09-24T14:10:00.000Z",
   "updatedAt": "2026-09-24T14:10:00.000Z"
 }
 ```
 
+### `GET /api/emergencies/:emergencyId/ofertas/mine`
+
+Lista únicamente las ofertas de la ONG asociada a la sesión iniciada, para
+que su representante pueda consultar lo que ya cargó. Requiere el rol
+`representante_ong` y devuelve un array con el mismo shape que el alta.
+
+Devuelve `409 Conflict` si el usuario de Bonita tiene el rol de ONG pero no
+existe una fila de `ongs` vinculada mediante `bonita_org_ref`.
+
 ### `PUT /api/ofertas/:id`
 
 Edita/actualiza una oferta **mientras la convocatoria de su emergencia sigue
 abierta** (`emergencies.status = 'convocatoria_abierta'`); fuera de esa
 ventana debe devolver `409 Conflict`. Mismo body que el alta (`observations`,
-`items`; `ongIds` también editable).
+`items`). Solo una ONG asociada a la oferta puede modificarla; el intento de
+otra ONG devuelve `403 Forbidden`.
 
 Cada edición **debe** guardar una fila nueva en `oferta_historial` (snapshot
 completo de la oferta antes del cambio, `version` incremental) — es el
@@ -362,7 +388,9 @@ en array). La usa el Centro Coordinador para revisarlas.
 
 ### `GET /api/ofertas/:id/historial`
 
-Devuelve las versiones guardadas de una oferta, más vieja primero:
+Devuelve las versiones guardadas de una oferta propia, más vieja primero.
+Requiere sesión con rol `representante_ong` y que la ONG esté asociada a la
+oferta.
 
 ```json
 [

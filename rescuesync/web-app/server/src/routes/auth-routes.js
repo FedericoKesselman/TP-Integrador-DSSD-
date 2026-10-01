@@ -31,7 +31,14 @@ router.post('/login', async (req, res) => {
     req.session.userId = profile.userId;
     req.session.role = profile.role;
     req.session.groupPath = profile.groupPath;
-    return res.json({ username, role: profile.role, groupPath: profile.groupPath });
+    // Para una ONG, su grupo en Bonita es la referencia a la tabla `ongs` (bonita_org_ref)
+    req.session.ongRef = profile.role === 'representante_ong' ? profile.groupName : null;
+    return res.json({
+      username,
+      role: profile.role,
+      groupPath: profile.groupPath,
+      ongRef: req.session.ongRef,
+    });
   } catch (error) {
     console.error(error);
     return res.status(502).json({ message: 'No se pudo conectar con Bonita.' });
@@ -42,8 +49,8 @@ router.get('/me', (req, res) => {
   if (!req.session.username) {
     return res.status(401).json({ message: 'No hay sesión iniciada.' });
   }
-  const { username, role, groupPath } = req.session;
-  return res.json({ username, role, groupPath });
+  const { username, role, groupPath, ongRef } = req.session;
+  return res.json({ username, role, groupPath, ongRef });
 });
 
 router.post('/logout', async (req, res) => {

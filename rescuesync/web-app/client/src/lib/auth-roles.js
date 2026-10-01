@@ -25,3 +25,7 @@ export function isRegionalCoordinator(user) {
 export function getRoleLabel(user) {
   return ROLE_LABELS[user?.role] || 'Usuario';
 }
+
+export function isOngRepresentative(user) {
+  return user?.role === ROLES.REPRESENTANTE_ONG;
+}
