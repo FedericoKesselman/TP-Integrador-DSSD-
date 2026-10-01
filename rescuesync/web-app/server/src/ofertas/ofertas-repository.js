@@ -77,9 +77,12 @@ async function getOfertaById(queryable, ofertaId) {
   return rowToOferta(ofertaResult.rows[0], ongs, items);
 }
 
-async function ensureLotesBelongToEmergency(queryable, emergencyId, loteIds) {
+// Los lotes tienen que ser de la emergencia y la cantidad ofrecida no puede
+// superar la solicitada en cada lote.
+async function validateItemsAgainstLotes(queryable, emergencyId, items) {
+  const loteIds = items.map((item) => item.loteId.trim());
   const lotesResult = await queryable.query(
-    `SELECT id
+    `SELECT id, resource_type, quantity_requested
      FROM lotes
      WHERE emergency_id = $1 AND id = ANY($2::uuid[])`,
     [emergencyId, loteIds],
@@ -87,6 +90,17 @@ async function ensureLotesBelongToEmergency(queryable, emergencyId, loteIds) {
   if (lotesResult.rowCount !== loteIds.length) {
     throw createDomainError('Uno o más lotes no pertenecen a esta emergencia.', 400);
   }
+
+  const lotesById = new Map(lotesResult.rows.map((lote) => [lote.id, lote]));
+  items.forEach((item) => {
+    const lote = lotesById.get(item.loteId.trim());
+    if (Number(item.quantityOffered) > lote.quantity_requested) {
+      throw createDomainError(
+        `La cantidad ofrecida para "${lote.resource_type}" supera la solicitada (${lote.quantity_requested}).`,
+        400,
+      );
+    }
+  });
 }
 
 async function insertOfertaItems(queryable, ofertaId, items) {
@@ -116,16 +130,43 @@ async function ensureOngOwnsOferta(queryable, ofertaId, ongId) {
   }
 }
 
+// Consorcio: reemplaza las ONGs asociadas a la oferta. La principal no se toca.
+async function setPartnerOngs(queryable, ofertaId, principalOngId, partnerOngIds) {
+  const ids = [...new Set(partnerOngIds)].filter((ongId) => ongId !== principalOngId);
+  if (ids.length > 0) {
+    const found = await queryable.query('SELECT id FROM ongs WHERE id = ANY($1::uuid[])', [ids]);
+    if (found.rowCount !== ids.length) {
+      throw createDomainError('Una o más ONGs asociadas no existen.', 400);
+    }
+  }
+
+  await queryable.query("DELETE FROM oferta_ongs WHERE oferta_id = $1 AND role = 'asociada'", [
+    ofertaId,
+  ]);
+  if (ids.length > 0) {
+    await queryable.query(
+      `INSERT INTO oferta_ongs (oferta_id, ong_id, role)
+       SELECT $1, ong_id, 'asociada' FROM unnest($2::uuid[]) AS ong_id`,
+      [ofertaId, ids],
+    );
+  }
+}
+
+// ONGs de la red, para elegir con quién formar un consorcio.
+export async function listOngs() {
+  const { rows } = await pool.query('SELECT id, name, bonita_org_ref FROM ongs ORDER BY name');
+  return rows.map((row) => ({ id: row.id, name: row.name, bonitaOrgRef: row.bonita_org_ref }));
+}
+
 export async function createOfertaForEmergency(emergencyId, ongRef, payload) {
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    const emergencyResult = await client.query(
-      'SELECT id, status FROM emergencies WHERE id = $1',
-      [emergencyId],
-    );
+    const emergencyResult = await client.query('SELECT id, status FROM emergencies WHERE id = $1', [
+      emergencyId,
+    ]);
     if (emergencyResult.rowCount === 0) {
       throw createDomainError('Emergencia no encontrada.', 404);
     }
@@ -134,8 +175,7 @@ export async function createOfertaForEmergency(emergencyId, ongRef, payload) {
     }
 
     const ong = await findOngByRef(client, ongRef);
-    const loteIds = payload.items.map((item) => item.loteId.trim());
-    await ensureLotesBelongToEmergency(client, emergencyId, loteIds);
+    await validateItemsAgainstLotes(client, emergencyId, payload.items);
 
     const ofertaResult = await client.query(
       `INSERT INTO ofertas (emergency_id, observations)
@@ -150,6 +190,7 @@ export async function createOfertaForEmergency(emergencyId, ongRef, payload) {
        VALUES ($1, $2, $3)`,
       [oferta.id, ong.id, 'principal'],
     );
+    await setPartnerOngs(client, oferta.id, ong.id, payload.partnerOngIds ?? []);
 
     await insertOfertaItems(client, oferta.id, payload.items);
 
@@ -211,8 +252,7 @@ export async function updateOwnOferta(ofertaId, ongRef, changedBy, payload) {
       throw createDomainError('La oferta no se puede editar porque la convocatoria cerró.', 409);
     }
 
-    const loteIds = payload.items.map((item) => item.loteId.trim());
-    await ensureLotesBelongToEmergency(client, oferta.emergency_id, loteIds);
+    await validateItemsAgainstLotes(client, oferta.emergency_id, payload.items);
 
     const previousSnapshot = await getOfertaById(client, ofertaId);
     const versionResult = await client.query(
@@ -236,6 +276,18 @@ export async function updateOwnOferta(ofertaId, ongRef, changedBy, payload) {
     );
     await client.query('DELETE FROM oferta_lotes WHERE oferta_id = $1', [ofertaId]);
     await insertOfertaItems(client, ofertaId, payload.items);
+
+    // Solo la ONG principal puede cambiar quiénes forman el consorcio.
+    if (payload.partnerOngIds !== undefined) {
+      const principal = await client.query(
+        "SELECT ong_id FROM oferta_ongs WHERE oferta_id = $1 AND role = 'principal'",
+        [ofertaId],
+      );
+      if (principal.rows[0]?.ong_id !== ong.id) {
+        throw createDomainError('Solo la ONG principal puede modificar el consorcio.', 403);
+      }
+      await setPartnerOngs(client, ofertaId, ong.id, payload.partnerOngIds);
+    }
 
     const updatedOferta = await getOfertaById(client, ofertaId);
     await client.query('COMMIT');
