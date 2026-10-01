@@ -4,7 +4,6 @@ El proyecto de Bonita (diagrama del proceso `GestionarEmergencia` y la
 organización **RescueSync**) vive en un **repositorio aparte**, conectado
 directamente desde Bonita Studio:
 
-**Repo:** `<URL del repo de Bonita>`
 
 ## Puesta en marcha
 
