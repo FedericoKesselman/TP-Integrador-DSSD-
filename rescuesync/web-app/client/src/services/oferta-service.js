@@ -92,6 +92,12 @@ export async function updateOferta(ofertaId, payload) {
   return updated;
 }
 
+// GET /api/ofertas/ongs — ONGs de la red, para armar un consorcio
+export async function getOngs() {
+  if (!USE_MOCK_API) return apiRequest('/ofertas/ongs');
+  return [];
+}
+
 export async function getOfertaHistory(ofertaId) {
   if (!USE_MOCK_API) return apiRequest(`/ofertas/${ofertaId}/historial`);
   return readStore(MOCK_HISTORY_KEY)[ofertaId] ?? [];

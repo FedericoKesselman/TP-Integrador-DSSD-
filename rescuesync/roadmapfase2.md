@@ -213,9 +213,10 @@ componentes asociados); falta el otro lado.*
 **Backend implementado (puntos 16 y 17):**
 - El usuario se autentica en Bonita y su `ongRef` se vincula con la entidad
   local `ongs`; las credenciales no se duplican en PostgreSQL.
-- Una oferta puede cubrir parcialmente uno o varios lotes. `oferta_ongs`
-  conserva el soporte para consorcios, aunque la UI mínima cargará inicialmente
-  a la ONG de la sesión como principal.
+- Una oferta puede cubrir parcialmente uno o varios lotes. Consorcios: la ONG
+  que crea la oferta es la `principal` y puede asociar otras ONGs desde el
+  formulario (`partnerOngIds`, guardadas en `oferta_ongs` como `asociada`);
+  las asociadas ven y editan la oferta, y solo la principal cambia el consorcio.
 - La creación y edición se hacen en transacciones y solo durante
   `convocatoria_abierta`. La edición exige pertenecer a la oferta y guarda el
   estado anterior en `oferta_historial` con versión incremental y usuario de

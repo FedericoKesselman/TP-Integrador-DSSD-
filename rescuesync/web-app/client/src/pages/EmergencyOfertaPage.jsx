@@ -7,9 +7,10 @@ import {
   MapPin,
   PackageCheck,
   Save,
+  Users,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useOutletContext, useParams } from 'react-router-dom';
 
 import {
   OFFER_OBSERVATIONS_MAX_LENGTH,
@@ -23,6 +24,7 @@ import { getLotes } from '../services/lote-service.js';
 import {
   createOferta,
   getOfertaHistory,
+  getOngs,
   getOwnOfertas,
   updateOferta,
 } from '../services/oferta-service.js';
@@ -45,6 +47,11 @@ function buildItemState(lotes, oferta) {
   );
 }
 
+// Ids de las ONGs asociadas (consorcio) de una oferta.
+function partnersOf(oferta) {
+  return (oferta?.ongs ?? []).filter((ong) => ong.role === 'asociada').map((ong) => ong.id);
+}
+
 function firstValidationMessage(errors) {
   if (typeof errors.items === 'string') return errors.items;
   if (Array.isArray(errors.items)) {
@@ -56,12 +63,15 @@ function firstValidationMessage(errors) {
 
 function EmergencyOfertaPage() {
   const { id: emergencyId } = useParams();
+  const { user } = useOutletContext() ?? {};
   const [emergency, setEmergency] = useState(null);
   const [lotes, setLotes] = useState([]);
   const [oferta, setOferta] = useState(null);
   const [history, setHistory] = useState([]);
   const [items, setItems] = useState({});
   const [observations, setObservations] = useState('');
+  const [ongs, setOngs] = useState([]);
+  const [partnerOngIds, setPartnerOngIds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -74,10 +84,11 @@ function EmergencyOfertaPage() {
       try {
         setLoading(true);
         setError(null);
-        const [emergencyData, lotesData, ofertasData] = await Promise.all([
+        const [emergencyData, lotesData, ofertasData, ongsData] = await Promise.all([
           getEmergency(emergencyId),
           getLotes(emergencyId),
           getOwnOfertas(emergencyId),
+          getOngs(),
         ]);
         if (!active) return;
 
@@ -87,6 +98,8 @@ function EmergencyOfertaPage() {
         setOferta(currentOferta);
         setItems(buildItemState(lotesData, currentOferta));
         setObservations(currentOferta?.observations ?? '');
+        setOngs(ongsData);
+        setPartnerOngIds(partnersOf(currentOferta));
 
         if (currentOferta) {
           const historyData = await getOfertaHistory(currentOferta.id);
@@ -109,6 +122,18 @@ function EmergencyOfertaPage() {
     () => Object.values(items).filter((item) => item.selected).length,
     [items],
   );
+
+  // La ONG de la sesión y si es la principal de la oferta (la que puede cambiar el consorcio).
+  const ownOngId = ongs.find((ong) => ong.bonitaOrgRef === user?.ongRef)?.id;
+  const isPrincipal =
+    !oferta || oferta.ongs.some((ong) => ong.role === 'principal' && ong.id === ownOngId);
+  const partnerOptions = ongs.filter((ong) => ong.id !== ownOngId);
+
+  function togglePartner(ongId) {
+    setPartnerOngIds((current) =>
+      current.includes(ongId) ? current.filter((id) => id !== ongId) : [...current, ongId],
+    );
+  }
 
   function updateItem(loteId, changes) {
     setItems((current) => ({
@@ -133,6 +158,7 @@ function EmergencyOfertaPage() {
 
     const payload = {
       observations: observations.trim() || null,
+      ...(isPrincipal ? { partnerOngIds } : {}),
       items: lotes
         .filter((lote) => items[lote.id]?.selected)
         .map((lote) => ({
@@ -156,6 +182,7 @@ function EmergencyOfertaPage() {
       setSuccess(oferta ? 'La oferta fue actualizada.' : 'La oferta fue registrada.');
       setItems(buildItemState(lotes, saved));
       setObservations(saved.observations ?? '');
+      setPartnerOngIds(partnersOf(saved));
       setHistory(await getOfertaHistory(saved.id));
     } catch (saveError) {
       setError(saveError.message || 'No se pudo guardar la oferta.');
@@ -286,6 +313,7 @@ function EmergencyOfertaPage() {
                                 id={`quantity-${lote.id}`}
                                 type="number"
                                 min="1"
+                                max={lote.quantityRequested}
                                 step="1"
                                 required
                                 disabled={!isOpen}
@@ -337,6 +365,55 @@ function EmergencyOfertaPage() {
               hint="Agregá información general sobre disponibilidad, traslado o coordinación."
             />
           </section>
+
+          {partnerOptions.length > 0 && (
+            <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="flex items-center gap-2 font-black text-slate-900">
+                <Users className="h-5 w-5 text-brand" />
+                Consorcio <span className="text-sm font-normal text-slate-400">(opcional)</span>
+              </h2>
+              {isPrincipal ? (
+                <>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Elegí las ONGs que se asocian a esta oferta. Van a poder verla y editarla.
+                  </p>
+                  <div className="mt-4 space-y-2">
+                    {partnerOptions.map((ong) => (
+                      <label
+                        key={ong.id}
+                        htmlFor={`partner-${ong.id}`}
+                        className="flex items-center gap-3 text-sm text-slate-800"
+                      >
+                        <input
+                          id={`partner-${ong.id}`}
+                          type="checkbox"
+                          checked={partnerOngIds.includes(ong.id)}
+                          disabled={!isOpen}
+                          onChange={() => togglePartner(ong.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        {ong.name}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Tu ONG participa como asociada. Solo la ONG principal puede cambiar el
+                    consorcio.
+                  </p>
+                  <ul className="mt-4 space-y-1 text-sm text-slate-800">
+                    {oferta.ongs.map((ong) => (
+                      <li key={ong.id}>
+                        {ong.name} · {ong.role}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
         </div>
 
         <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">

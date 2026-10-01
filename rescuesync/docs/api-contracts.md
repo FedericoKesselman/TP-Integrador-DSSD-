@@ -308,26 +308,22 @@ Para el alcance mínimo de la Entrega 2, la ONG que presenta la oferta se
 resuelve desde la sesión de Bonita del usuario logueado (`representante_ong`).
 La aplicación no crea usuarios propios ni recibe credenciales locales: solo
 vincula esa sesión con una fila de dominio en `ongs` mediante
-`ongs.bonita_org_ref`. Los consorcios quedan soportados por el modelo
-(`oferta_ongs`), pero pueden cargarse de forma simplificada más adelante sin
-cambiar las tablas principales.
+`ongs.bonita_org_ref`. Los consorcios se guardan en `oferta_ongs` (rol
+`principal` o `asociada`).
 
 ### `POST /api/emergencies/:emergencyId/ofertas`
 
-Alta de una oferta por parte de la ONG logueada. El backend asocia la oferta
-a la ONG vinculada con la sesión de Bonita, por lo que el cliente no envía
-`ongIds` en el flujo mínimo de esta entrega.
-
-El modelo conserva soporte para consorcios: `oferta_ongs` permite asociar
-una o varias ONGs a la misma oferta. Si en una etapa posterior se habilita
-la carga explícita de consorcios desde la UI, puede reintroducirse `ongIds`
-en el request sin cambiar la estructura de la base.
+Alta de una oferta por parte de la ONG logueada, que queda como ONG
+`principal`. Para un **consorcio**, `partnerOngIds` agrega otras ONGs como
+`asociada`: pueden ver y editar la oferta, pero solo la principal cambia
+quiénes forman el consorcio.
 
 **Request body**
 
 ```json
 {
   "observations": "Podemos cubrir también transporte si hace falta.",
+  "partnerOngIds": ["uuid-ong-2"],
   "items": [
     { "loteId": "uuid-lote-1", "quantityOffered": 3, "notes": null }
   ]
@@ -337,6 +333,7 @@ en el request sin cambiar la estructura de la base.
 | Campo | Tipo | Requerido | Reglas |
 |---|---|---|---|
 | `observations` | string \| null | no | |
+| `partnerOngIds` | string[] (uuid) | no | ONGs asociadas (consorcio); deben existir en `ongs` |
 | `items` | array | sí | al menos 1 item |
 | `items[].loteId` | string (uuid) | sí | debe pertenecer a la misma emergencia |
 | `items[].quantityOffered` | integer | sí | > 0 (puede ser menor a lo pedido: oferta parcial) |
@@ -371,7 +368,8 @@ existe una fila de `ongs` vinculada mediante `bonita_org_ref`.
 Edita/actualiza una oferta **mientras la convocatoria de su emergencia sigue
 abierta** (`emergencies.status = 'convocatoria_abierta'`); fuera de esa
 ventana debe devolver `409 Conflict`. Mismo body que el alta (`observations`,
-`items`). Solo una ONG asociada a la oferta puede modificarla; el intento de
+`partnerOngIds`, `items`). Si viene `partnerOngIds`, reemplaza las ONGs
+asociadas; solo puede hacerlo la ONG principal (si no, `403`). Solo una ONG asociada a la oferta puede modificarla; el intento de
 otra ONG devuelve `403 Forbidden`.
 
 Cada edición **debe** guardar una fila nueva en `oferta_historial` (snapshot
@@ -385,6 +383,11 @@ Bonita que hizo el cambio (texto libre, sin FK).
 
 Lista las ofertas de una emergencia (mismo shape que la respuesta del alta,
 en array). La usa el Centro Coordinador para revisarlas.
+
+### `GET /api/ofertas/ongs`
+
+Lista las ONGs de la red (`[{ "id", "name", "bonitaOrgRef" }]`), para elegir
+con quién formar un consorcio. Requiere el rol `representante_ong`.
 
 ### `GET /api/ofertas/:id/historial`
 
