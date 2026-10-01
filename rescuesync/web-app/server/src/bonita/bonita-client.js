@@ -160,3 +160,39 @@ export async function completePendingTasks(
   return { completed, skipped };
 }
 /* eslint-enable no-await-in-loop, no-restricted-syntax */
+
+// Roles de la organización de Bonita que usa la app.
+const APP_ROLES = ['operador_municipal', 'coordinador_regional', 'representante_ong', 'auditor'];
+
+// Pregunta a Bonita quién es el usuario de la sesión y cuál es su rol en la
+// organización. Son las mismas dos consultas que el curl de "quién soy" y "membresías".
+export async function getUserProfile(session) {
+  const headers = apiHeaders(session); // arma la petición agregándole los tokens para bonita
+
+  // Bonita devuelve el id del usuario de esta sesión
+  const sessionResponse = await fetch(`${BONITA_URL}/API/system/session/unusedid`, { headers });
+  const sessionData = await sessionResponse.json();
+  const userId = sessionData.user_id;
+
+  const params = new URLSearchParams([
+    // arma la petición
+    ['p', '0'], // p de número de página 0 para tomar la primera
+    ['c', '20'], // c de count por página, 20 para que haya espacio de sobra
+    ['f', `user_id=${userId}`], // filtrar por userId
+    ['d', 'role_id'], // traer el nombre del rol no su id
+    ['d', 'group_id'], // traer el nombre del grupo no su id
+  ]);
+  const membershipsResponse = await fetch(`${BONITA_URL}/API/identity/membership?${params}`, {
+    headers,
+  }); // arma petición
+  const memberships = await membershipsResponse.json(); // pasa petición a json
+
+  const membership = memberships.find((m) => APP_ROLES.includes(m.role_id.name)); // itera por los roles del usuario y se queda con el primero que coincida con alguno de APP_ROLES
+
+  return {
+    userId,
+    role: membership?.role_id.name ?? null,
+    groupPath: membership?.group_id.path ?? null,
+    groupName: membership?.group_id.name ?? null,
+  };
+}

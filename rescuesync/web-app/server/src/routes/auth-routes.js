@@ -1,55 +1,8 @@
 import { Router } from 'express';
 
-import { login, logout } from '../bonita/bonita-client.js';
+import { getUserProfile, login, logout } from '../bonita/bonita-client.js';
 
 const router = Router();
-
-export function resolveUserRole(username) {
-  if (!username) return null;
-  const normalized = String(username).trim().toLowerCase();
-  if (
-    normalized.startsWith('operador') ||
-    normalized.includes('municip') ||
-    normalized.includes('la-plata')
-  ) {
-    return 'operador_municipal';
-  }
-  if (
-    normalized.startsWith('coordinador') ||
-    normalized.includes('centro') ||
-    normalized.includes('regional')
-  ) {
-    return 'coordinador_regional';
-  }
-  if (
-    normalized.includes('ong') ||
-    normalized.includes('rescatistas') ||
-    normalized.includes('solidarias') ||
-    normalized.includes('cruz')
-  ) {
-    return 'representante_ong';
-  }
-  if (
-    normalized.includes('direccion') ||
-    normalized.includes('dirección') ||
-    normalized.includes('auditor')
-  ) {
-    return 'auditor';
-  }
-  return 'coordinador_regional';
-}
-
-export function resolveOngRef(username) {
-  if (!username) return null;
-  const normalized = String(username).trim().toLowerCase();
-
-  if (normalized.includes('rescatistas')) return 'rescatistas-unidos';
-  if (normalized.includes('solidarias')) return 'manos-solidarias';
-  if (normalized.includes('cruz')) return 'cruz-roja';
-  if (normalized.includes('ong')) return 'ong-demo';
-
-  return null;
-}
 
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
@@ -63,13 +16,29 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Usuario o contraseña incorrectos.' });
     }
 
-    const role = resolveUserRole(username);
-    // Guardamos la sesión de Bonita del lado del server
-    req.session.bonita = bonitaSession; // se guarda en la memoria del server
+    // El rol sale de la organización de Bonita (membresías del usuario).
+    const profile = await getUserProfile(bonitaSession);
+    if (!profile.role) {
+      await logout(bonitaSession).catch((error) => console.error(error));
+      return res
+        .status(403)
+        .json({ message: 'Tu usuario no tiene un rol habilitado en RescueSync.' });
+    }
+
+    // Guardamos la sesión de Bonita y el perfil del lado del server
+    req.session.bonita = bonitaSession;
     req.session.username = username;
-    req.session.role = role;
-    req.session.ongRef = role === 'representante_ong' ? resolveOngRef(username) : null;
-    return res.json({ username, role, ongRef: req.session.ongRef });
+    req.session.userId = profile.userId;
+    req.session.role = profile.role;
+    req.session.groupPath = profile.groupPath;
+    // Para una ONG, su grupo en Bonita es la referencia a la tabla `ongs` (bonita_org_ref)
+    req.session.ongRef = profile.role === 'representante_ong' ? profile.groupName : null;
+    return res.json({
+      username,
+      role: profile.role,
+      groupPath: profile.groupPath,
+      ongRef: req.session.ongRef,
+    });
   } catch (error) {
     console.error(error);
     return res.status(502).json({ message: 'No se pudo conectar con Bonita.' });
@@ -80,11 +49,8 @@ router.get('/me', (req, res) => {
   if (!req.session.username) {
     return res.status(401).json({ message: 'No hay sesión iniciada.' });
   }
-  const role = req.session.role || resolveUserRole(req.session.username);
-  const ongRef = req.session.ongRef ?? (role === 'representante_ong'
-    ? resolveOngRef(req.session.username)
-    : null);
-  return res.json({ username: req.session.username, role, ongRef });
+  const { username, role, groupPath, ongRef } = req.session;
+  return res.json({ username, role, groupPath, ongRef });
 });
 
 router.post('/logout', async (req, res) => {
