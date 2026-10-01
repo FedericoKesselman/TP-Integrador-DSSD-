@@ -198,15 +198,42 @@ componentes asociados); falta el otro lado.*
 - [x] `npm run lint` sin errores en cliente y server.
 - [x] `npm run build` del cliente completado correctamente.
 
-## Fase 4 — Ofertas (ONGs)
+## Fase 4 — Ofertas (ONGs) ✅ Implementada
 
-16. Diseñar y documentar el modelo de "oferta" (recursos, personal,
+16. [x] Diseñar y documentar el modelo de "oferta" (recursos, personal,
     lote(s) que cubre, si es parcial, si es en consorcio).
-17. Endpoints: crear oferta, editar/actualizar oferta dentro de la ventana
-    de tiempo, listar ofertas propias.
-18. Formulario básico de carga de ofertas en el cliente para el rol ONG
+17. [x] Endpoints: crear oferta, editar/actualizar oferta dentro de la ventana
+    de tiempo, listar ofertas propias y consultar su historial de versiones.
+18. [x] Formulario básico de carga de ofertas en el cliente para el rol ONG
     (alcance mínimo que pide la Entrega 2; consorcios complejos pueden
     quedar simplificados para esta etapa).
+
+**Backend implementado (puntos 16 y 17):**
+- El usuario se autentica en Bonita y su `ongRef` se vincula con la entidad
+  local `ongs`; las credenciales no se duplican en PostgreSQL.
+- Una oferta puede cubrir parcialmente uno o varios lotes. `oferta_ongs`
+  conserva el soporte para consorcios, aunque la UI mínima cargará inicialmente
+  a la ONG de la sesión como principal.
+- La creación y edición se hacen en transacciones y solo durante
+  `convocatoria_abierta`. La edición exige pertenecer a la oferta y guarda el
+  estado anterior en `oferta_historial` con versión incremental y usuario de
+  Bonita.
+- Endpoints implementados: `POST /api/emergencies/:emergencyId/ofertas`,
+  `GET /api/emergencies/:emergencyId/ofertas/mine`, `PUT /api/ofertas/:id` y
+  `GET /api/ofertas/:id/historial`.
+- Cliente: las convocatorias abiertas muestran al representante de ONG el
+  acceso a `/emergencias/:id/oferta`. El formulario recupera los lotes, permite
+  seleccionar cuáles cubrir, cargar cantidades y notas, crear la oferta o
+  editar la última oferta propia, y muestra las versiones anteriores.
+
+**Verificación de cierre:**
+- [x] Alta real de una oferta asociada a la ONG de la sesión.
+- [x] Listado de ofertas propias y recuperación para edición.
+- [x] Edición con snapshot anterior en `oferta_historial`.
+- [x] Rechazo `401` sin sesión y `403` cuando otra ONG intenta editarla.
+- [x] Ruta protegida para `representante_ong`; la acción de carga aparece en
+  convocatorias abiertas y una convocatoria cerrada queda en modo consulta.
+- [x] `npm run lint` y `npm run build` del cliente sin errores.
 
 ## Fase 5 — Integración con Bonita: iniciar y completar tareas ✅ Implementada
 

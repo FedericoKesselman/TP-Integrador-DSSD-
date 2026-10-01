@@ -24,9 +24,7 @@ export function resolveUserRole(userOrUsername) {
   }
 
   const rawUsername =
-    typeof userOrUsername === 'string'
-      ? userOrUsername
-      : userOrUsername.username || '';
+    typeof userOrUsername === 'string' ? userOrUsername : userOrUsername.username || '';
 
   const normalized = rawUsername.trim().toLowerCase();
 
@@ -71,6 +69,10 @@ export function isMunicipalOperator(userOrUsername) {
 
 export function isRegionalCoordinator(userOrUsername) {
   return resolveUserRole(userOrUsername) === ROLES.COORDINADOR_REGIONAL;
+}
+
+export function isOngRepresentative(userOrUsername) {
+  return resolveUserRole(userOrUsername) === ROLES.REPRESENTANTE_ONG;
 }
 
 export function getRoleLabel(userOrUsername) {
