@@ -3,7 +3,9 @@ import PropTypes from 'prop-types';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 
-import { isMunicipalOperator, getRoleLabel } from '../../lib/auth-roles.js';
+import { isMunicipalOperator, isOngRepresentative, getRoleLabel } from '../../lib/auth-roles.js';
+
+import NotificationInbox from './NotificationInbox.jsx';
 
 function Header({ user = null, userName = '', onLogout }) {
   const [confirmingLogout, setConfirmingLogout] = useState(false);
@@ -61,6 +63,7 @@ function Header({ user = null, userName = '', onLogout }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          {isOngRepresentative(user) && <NotificationInbox />}
           <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm ring-1 ring-white/15">
             <UserRound className="h-4 w-4 text-celeste" aria-hidden="true" />
             <span className="sr-only">Usuario: </span>
