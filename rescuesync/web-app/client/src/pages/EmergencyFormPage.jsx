@@ -175,23 +175,8 @@ function EmergencyFormPage() {
     }
   };
 
-  const handleRegisterAnother = () => {
-    setValues(createEmptyEmergency());
-    setTouched({});
-    setSubmitCount(0);
-    setSubmitError(null);
-    setCreated(null);
-    setActiveSection(FORM_SECTIONS[0].id);
-  };
-
   if (created) {
-    return (
-      <EmergencyConfirmation
-        emergency={created.emergency}
-        values={created.values}
-        onRegisterAnother={handleRegisterAnother}
-      />
-    );
+    return <EmergencyConfirmation emergency={created.emergency} values={created.values} />;
   }
 
   const fieldProps = (name) => ({

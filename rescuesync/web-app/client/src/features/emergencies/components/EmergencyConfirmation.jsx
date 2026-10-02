@@ -1,13 +1,12 @@
-import { CircleCheck, Plus } from 'lucide-react';
+import { CircleCheck } from 'lucide-react';
 import PropTypes from 'prop-types';
 import { useEffect, useRef } from 'react';
 
 import Alert from '../../../components/ui/Alert.jsx';
-import Button from '../../../components/ui/Button.jsx';
 import { emergencyValuesShape } from '../emergency-prop-types.js';
 import EmergencyPreview from './EmergencyPreview.jsx';
 
-function EmergencyConfirmation({ emergency, values, onRegisterAnother }) {
+function EmergencyConfirmation({ emergency, values }) {
   const headingRef = useRef(null);
 
   // Lleva el foco al título para que los lectores de pantalla anuncien el resultado.
@@ -65,12 +64,6 @@ function EmergencyConfirmation({ emergency, values, onRegisterAnother }) {
             <Alert tone="warning">{emergency.bonitaWarning}</Alert>
           </div>
         )}
-
-        <div className="mt-6">
-          <Button size="lg" icon={Plus} onClick={onRegisterAnother}>
-            Registrar otra emergencia
-          </Button>
-        </div>
       </section>
 
       <EmergencyPreview values={values} title="Datos enviados" />
@@ -86,7 +79,6 @@ EmergencyConfirmation.propTypes = {
     bonitaWarning: PropTypes.string,
   }).isRequired,
   values: emergencyValuesShape.isRequired,
-  onRegisterAnother: PropTypes.func.isRequired,
 };
 
 export default EmergencyConfirmation;

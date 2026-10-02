@@ -5,11 +5,9 @@ import PropTypes from 'prop-types';
 import { useEffect, useMemo } from 'react';
 import { MapContainer, Marker, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 
-// Mapa base gris oficial del Instituto Geográfico Nacional (Argenmap), servido como TMS.
-const IGN_TILES_URL =
-  'https://wms.ign.gob.ar/geoserver/gwc/service/tms/1.0.0/mapabase_gris@EPSG%3A3857@png/{z}/{x}/{y}.png';
-const IGN_ATTRIBUTION =
-  'Mapa base: <a href="https://www.ign.gob.ar/" target="_blank" rel="noreferrer">Instituto Geográfico Nacional</a>';
+const TILES_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const ARGENTINA_VIEW = { lat: -38.4, lon: -63.6, zoom: 4 };
 
 const placeIcon = L.divIcon({
@@ -102,7 +100,7 @@ function LocationMap({
       scrollWheelZoom={false}
       className={`rs-map ${className}`}
     >
-      <TileLayer url={IGN_TILES_URL} attribution={IGN_ATTRIBUTION} tms maxZoom={18} />
+      <TileLayer url={TILES_URL} attribution={ATTRIBUTION} maxZoom={18} />
       <ViewController view={view} reducedMotion={reducedMotion} />
       <PointPicker onPick={onPick} />
       {place && (
