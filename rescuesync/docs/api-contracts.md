@@ -167,8 +167,10 @@ también `{ "message": "..." }`.
 - `Severity`: `baja`, `media`, `alta`, `critica`
 - `EmergencyStatus`: `registrada` (alta hecha) → `convocatoria_abierta`
   (el Coordinador publicó los lotes) → `convocatoria_cerrada` (venció el
-  temporizador de Bonita). Más valores se van a sumar cuando se integre
-  la validación/adjudicación con el Sistema Nacional (Entrega 3).
+  temporizador de Bonita) → `validada` → `adjudicada` → `en_ejecucion` →
+  `finalizada`. Los cuatro últimos son de la Entrega 3 (ver
+  "Entrega 3" más abajo); hoy el `CHECK` de la base solo admite los tres
+  primeros (se amplía en E3-50).
 
 Definidos en el cliente en
 `client/src/features/emergencies/emergency-constants.js` y como `CHECK`
@@ -433,15 +435,50 @@ arranca en una fase posterior del roadmap (Fase 5 en adelante / Entrega 3).
 }
 ```
 
-**Pendiente de definir** (no bloquea la Fase 0): cómo se autentica esta
-llamada de Bonita hacia el server — a diferencia del login de usuarios (que
-va contra el login service de Bonita), acá es Bonita llamando **hacia**
-nuestro server. Podría resolverse con un secreto compartido simple. Definir
-en la Fase 5 del roadmap.
+**Reemplazado en la Entrega 3** por
+`GET /api/internal/emergencies/:id/consolidado` (ver "Entrega 3" más abajo):
+devuelve directamente el body de `POST /validaciones` del Sistema Nacional y
+Bonita se autentica con el header `X-Integration-Key`.
 
 ### Enums
 
-- `OfertaStatus`: `registrada`, `retirada`
+- `OfertaStatus`: `registrada`, `retirada` y, desde la Entrega 3,
+  `validada`, `adjudicada`, `no_seleccionada`, `finalizada` (se suman al
+  `CHECK` en E3-50).
+
+## Entrega 3: rutas internas (Bonita) y nuevas del cliente
+
+Origen: sección 5 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01). El
+contrato del Sistema Nacional está en
+[`api-contracts-sistema-nacional.md`](./api-contracts-sistema-nacional.md).
+Todo esto está **pendiente de implementar** (Pistas D y E).
+
+### Para Bonita (`/api/internal/*`)
+
+Bonita llama sin sesión de usuario. Se autentica con el header
+`X-Integration-Key: <BONITA_INTEGRATION_KEY>` (secreto en `server/.env` y en
+los parámetros del proceso). Sin el header o con otro valor → `401`.
+
+| Método y ruta | Qué hace |
+|---|---|
+| `GET /api/internal/emergencies/:id/consolidado` | Devuelve el body de `POST /validaciones` del SN (solo ofertas no retiradas; `rol` = `principal`/`asociada`→`apoyo` según `oferta_ongs`) |
+| `PATCH /api/internal/emergencies/:id/estado` | `{estado}`; valida la transición contra una whitelist (incluye las inversas de reabrir/reformular) |
+| `POST /api/internal/emergencies/:id/validaciones` | Guarda el `resultados` del SN, marca las ofertas `validada` y la emergencia `validada` |
+| `GET /api/internal/emergencies/:id/adjudicacion` | Devuelve el body de `POST /compromisos` del SN con las ofertas adjudicadas |
+| `GET /api/internal/emergencies/:id/finalizacion` | `{ongRefs:[…]}` de las ONGs que marcaron su oferta finalizada |
+| `POST /api/internal/emergencies/:id/notificaciones` | `{tipo: CONVOCATORIA \| COMPROMISO}`; la web-app decide los destinatarios |
+
+### Para el cliente (sesión de Bonita; el rol se valida en el backend)
+
+| Método y ruta | Rol | Qué hace |
+|---|---|---|
+| `GET /api/emergencies/:id/ofertas` | coordinador | Ofertas con su perfil de validación |
+| `POST /api/emergencies/:id/decision` | coordinador | `{camino: continuar \| reabrir \| reformular}`: completa "Decidir como Continuar" con `camino` y aplica el efecto (reabrir: ofertas → `registrada`, completa "Publicar Convocatoria", estado `convocatoria_abierta`; reformular: ofertas → `retirada`, estado `registrada`, el coordinador rearma lotes y vuelve a publicar con el endpoint existente) |
+| `GET /api/emergencies/:id/ofertas/validadas` | municipio | Solo ofertas validadas, con perfil |
+| `POST /api/emergencies/:id/adjudicacion` | municipio | `{ofertaIds:[…]}`; ofertas → `adjudicada`/`no_seleccionada`, completa "Adjudicar Ofertas"; si Bonita falla, revierte |
+| `POST /api/ofertas/:id/finalizar` | ONG | Marca la oferta `finalizada` (solo si está `adjudicada` y es de su ONG) |
+| `POST /api/emergencies/:id/cierre-ejecucion` | coordinador | Solo si todas las adjudicadas están `finalizada`; completa "Confirmar cierre de ejecución" |
+| `GET /api/notificaciones`, `PATCH /api/notificaciones/:id/leida` | ONG | Bandeja de la ONG |
 
 ## Datos geográficos
 

@@ -1,0 +1,47 @@
+{
+  "name": "rescuesync-sistema-nacional",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sistema Nacional de Gestión de Recursos y Riesgos (API REST con JWT)",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "start:prod": "node-pg-migrate up && node scripts/seed.js && node src/index.js",
+    "seed": "node scripts/seed.js",
+    "test": "node --test",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write .",
+    "migrate:create": "node-pg-migrate create -j sql --envPath .env",
+    "migrate:up": "node-pg-migrate up --envPath .env",
+    "migrate:down": "node-pg-migrate down --envPath .env",
+    "docs:lint": "redocly lint openapi.yaml",
+    "docs:export": "node scripts/export-docs.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "node-pg-migrate": "^9.0.0",
+    "pg": "^8.13.1",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@redocly/cli": "^2.64.0",
+    "eslint": "^8.57.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "prettier": "^3.3.3"
+  }
+}

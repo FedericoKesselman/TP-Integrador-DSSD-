@@ -1,0 +1,1443 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Sistema Nacional de Gestión de Recursos y Riesgos",
+    "version": "0.1.0",
+    "description": "API REST del Sistema Nacional (SN) de RescueSync. Gestiona ONGs y su stock\nde recursos, valida ofertas por niveles de competencia y compromete/libera\nrecursos con locking en PostgreSQL.\n\n**Autenticación:** `POST /auth/login` devuelve un JWT (HS256, 1 h). El\nresto de los endpoints, salvo `/health` y `/docs`, exige\n`Authorization: Bearer <token>`. Usá el botón **Authorize** con el token.\n\n**Errores:** siempre `{ \"message\": \"...\" }` con el código HTTP correcto\n(400, 401, 403, 404, 409).\n\nContrato completo: `docs/api-contracts-sistema-nacional.md`. Los\nendpoints marcados *Pendiente (Pista B)* están acordados pero todavía no\nimplementados.\n",
+    "license": {
+      "name": "Uso académico — TP integrador DSSD 2026"
+    },
+    "contact": {
+      "name": "Grupo RescueSync"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Local (docker compose)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Login y emisión del JWT."
+    },
+    {
+      "name": "Sistema",
+      "description": "Estado del servicio."
+    },
+    {
+      "name": "ONGs",
+      "description": "Onboarding y consulta de ONGs habilitadas."
+    },
+    {
+      "name": "Recursos",
+      "description": "Stock por ONG y disponibilidad global."
+    },
+    {
+      "name": "Validación y compromiso",
+      "description": "Validación por niveles de competencia y compromiso transaccional con locking (Pista B)."
+    },
+    {
+      "name": "Cierre",
+      "description": "Finalización por ONG, cierre del proyecto y liberación de recursos."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Token ausente o inválido."
+          },
+          "detalle": {
+            "type": "object",
+            "description": "Opcional. Datos para resolver el error (ej. qué recurso no alcanza).",
+            "additionalProperties": true
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "rescuesync-integracion"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "description": "Segundos de validez",
+            "example": 3600
+          }
+        }
+      },
+      "RecursoCodigo": {
+        "type": "string",
+        "description": "Id del catálogo (`recursos_catalogo.codigo`), igual al del cliente web.",
+        "example": "paramedicos"
+      },
+      "StockItem": {
+        "type": "object",
+        "required": [
+          "recursoCodigo",
+          "cantidadTotal"
+        ],
+        "properties": {
+          "recursoCodigo": {
+            "$ref": "#/components/schemas/RecursoCodigo"
+          },
+          "cantidadTotal": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 10
+          }
+        }
+      },
+      "OngAlta": {
+        "type": "object",
+        "required": [
+          "ref",
+          "nombre",
+          "nivelOperativo",
+          "username",
+          "password"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "example": "rescatistas-unidos"
+          },
+          "nombre": {
+            "type": "string",
+            "example": "Rescatistas Unidos"
+          },
+          "nivelOperativo": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "example": 3
+          },
+          "username": {
+            "type": "string",
+            "example": "rescatistas-unidos"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          },
+          "recursos": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockItem"
+            }
+          }
+        }
+      },
+      "Ong": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "nombre": {
+            "type": "string"
+          },
+          "nivelOperativo": {
+            "type": "integer"
+          },
+          "habilitada": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OngCreada": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Ong"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "username": {
+                "type": "string",
+                "example": "rescatistas-unidos"
+              },
+              "recursos": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/RecursoOng"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "RecursoOng": {
+        "type": "object",
+        "properties": {
+          "recursoCodigo": {
+            "$ref": "#/components/schemas/RecursoCodigo"
+          },
+          "nombre": {
+            "type": "string",
+            "example": "Paramédicos"
+          },
+          "unidad": {
+            "type": "string",
+            "example": "personas"
+          },
+          "cantidadTotal": {
+            "type": "integer"
+          },
+          "cantidadComprometida": {
+            "type": "integer"
+          },
+          "cantidadDisponible": {
+            "type": "integer"
+          }
+        }
+      },
+      "Disponibilidad": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RecursoOng"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "categoria": {
+                "type": "string",
+                "example": "salud"
+              },
+              "ongsConDisponible": {
+                "type": "integer",
+                "description": "ONGs habilitadas con algo disponible de este recurso"
+              }
+            }
+          }
+        ]
+      },
+      "OngEnOferta": {
+        "type": "object",
+        "required": [
+          "ref",
+          "rol"
+        ],
+        "properties": {
+          "ref": {
+            "type": "string",
+            "example": "rescatistas-unidos"
+          },
+          "rol": {
+            "type": "string",
+            "enum": [
+              "principal",
+              "apoyo"
+            ]
+          }
+        }
+      },
+      "ValidacionRequest": {
+        "type": "object",
+        "required": [
+          "emergenciaId",
+          "severidad",
+          "lotes",
+          "ofertas"
+        ],
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "severidad": {
+            "type": "string",
+            "enum": [
+              "baja",
+              "media",
+              "alta",
+              "critica"
+            ]
+          },
+          "lotes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "recursoCodigo": {
+                  "$ref": "#/components/schemas/RecursoCodigo"
+                },
+                "cantidadSolicitada": {
+                  "type": "integer",
+                  "example": 5
+                }
+              }
+            }
+          },
+          "ofertas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ofertaId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "ongs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OngEnOferta"
+                  }
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "loteId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "recursoCodigo": {
+                        "$ref": "#/components/schemas/RecursoCodigo"
+                      },
+                      "cantidadOfrecida": {
+                        "type": "integer",
+                        "example": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ValidacionResponse": {
+        "type": "object",
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resultados": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ofertaId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "nivelHabilitacion": {
+                  "type": "string",
+                  "enum": [
+                    "PLENO",
+                    "PARCIAL",
+                    "APOYO",
+                    "SIN_CAPACIDAD"
+                  ]
+                },
+                "rolSugerido": {
+                  "type": "string",
+                  "enum": [
+                    "principal",
+                    "apoyo"
+                  ]
+                },
+                "nivelRiesgoPermitido": {
+                  "type": "string",
+                  "enum": [
+                    "baja",
+                    "media",
+                    "alta",
+                    "critica"
+                  ]
+                },
+                "capacidadesHabilitadas": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "loteId": {
+                        "type": "string",
+                        "format": "uuid"
+                      },
+                      "recursoCodigo": {
+                        "$ref": "#/components/schemas/RecursoCodigo"
+                      },
+                      "cantidadHabilitada": {
+                        "type": "integer"
+                      },
+                      "cantidadOfrecida": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                },
+                "observaciones": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "resumen": {
+            "type": "object",
+            "properties": {
+              "todosLosLotesCubiertos": {
+                "type": "boolean"
+              },
+              "cobertura": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "loteId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "solicitada": {
+                      "type": "integer"
+                    },
+                    "cubierta": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "CompromisoRequest": {
+        "type": "object",
+        "required": [
+          "emergenciaId",
+          "ofertas"
+        ],
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ofertas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ofertaId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "ongs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/OngEnOferta"
+                  }
+                },
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "recursoCodigo": {
+                        "$ref": "#/components/schemas/RecursoCodigo"
+                      },
+                      "cantidad": {
+                        "type": "integer",
+                        "example": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "CompromisoResponse": {
+        "type": "object",
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "compromisos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "compromisoId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "ofertaId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reparto": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "ongRef": {
+                        "type": "string"
+                      },
+                      "recursoCodigo": {
+                        "$ref": "#/components/schemas/RecursoCodigo"
+                      },
+                      "cantidad": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "FinalizacionResponse": {
+        "type": "object",
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "finalizadas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ongRef": {
+                  "type": "string",
+                  "example": "rescatistas-unidos"
+                },
+                "finalizadaAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "ongsSinFinalizar": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": [
+              "manos-solidarias"
+            ]
+          }
+        }
+      },
+      "CierreResponse": {
+        "type": "object",
+        "properties": {
+          "emergenciaId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "compromisosLiberados": {
+            "type": "integer",
+            "example": 2
+          },
+          "recursosLiberados": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ongRef": {
+                  "type": "string",
+                  "example": "rescatistas-unidos"
+                },
+                "recursoCodigo": {
+                  "$ref": "#/components/schemas/RecursoCodigo"
+                },
+                "cantidad": {
+                  "type": "integer",
+                  "example": 4
+                }
+              }
+            }
+          },
+          "ongsSinFinalizar": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Datos inválidos",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Falta el token o es inválido / está vencido",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "El rol del token no puede usar este endpoint",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "No existe",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Conflicto (ej. stock insuficiente o ref duplicado)",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Login y emisión del JWT",
+        "description": "Público. Límite de 10 intentos cada 15 minutos por IP.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "username": "rescuesync-integracion",
+                "password": "********"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token emitido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                },
+                "example": {
+                  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiaW50ZWdyYWNpb24i…",
+                  "tokenType": "Bearer",
+                  "expiresIn": 3600
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Falta el token o es inválido / está vencido",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "message": "Usuario o contraseña incorrectos."
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Demasiados intentos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "login"
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Sistema"
+        ],
+        "summary": "Healthcheck (API y base)",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "db": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ok",
+                  "db": "ok"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "La base no responde",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "healthcheck"
+      }
+    },
+    "/ongs": {
+      "post": {
+        "tags": [
+          "ONGs"
+        ],
+        "summary": "Onboarding de ONG (crea la ONG habilitada y su usuario)",
+        "description": "Rol: integracion. Crea la ONG habilitada, su cuenta (rol `ong`) y el\nstock inicial en una sola transacción (todo o nada). 400 si algún\n`recursoCodigo` no existe en el catálogo (`detalle.recursosDesconocidos`);\n409 si el `ref` o el `username` ya existen (`detalle.campo`).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OngAlta"
+              },
+              "example": {
+                "ref": "rescatistas-unidos",
+                "nombre": "Rescatistas Unidos",
+                "nivelOperativo": 3,
+                "username": "rescatistas-unidos",
+                "password": "********",
+                "recursos": [
+                  {
+                    "recursoCodigo": "paramedicos",
+                    "cantidadTotal": 4
+                  },
+                  {
+                    "recursoCodigo": "botes",
+                    "cantidadTotal": 2
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "ONG creada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OngCreada"
+                },
+                "example": {
+                  "ref": "rescatistas-unidos",
+                  "nombre": "Rescatistas Unidos",
+                  "nivelOperativo": 3,
+                  "habilitada": true,
+                  "username": "rescatistas-unidos",
+                  "recursos": [
+                    {
+                      "recursoCodigo": "botes",
+                      "nombre": "Botes de rescate",
+                      "unidad": "unidades",
+                      "cantidadTotal": 2,
+                      "cantidadComprometida": 0,
+                      "cantidadDisponible": 2
+                    },
+                    {
+                      "recursoCodigo": "paramedicos",
+                      "nombre": "Paramédicos",
+                      "unidad": "personas",
+                      "cantidadTotal": 4,
+                      "cantidadComprometida": 0,
+                      "cantidadDisponible": 4
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Conflicto (ej. stock insuficiente o ref duplicado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "message": "Ya existe una ONG con ese ref.",
+                  "detalle": {
+                    "campo": "ref"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "crearOng"
+      },
+      "get": {
+        "tags": [
+          "ONGs"
+        ],
+        "summary": "ONGs habilitadas",
+        "description": "Rol: cualquier usuario autenticado.",
+        "responses": {
+          "200": {
+            "description": "Lista de ONGs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Ong"
+                  }
+                },
+                "example": [
+                  {
+                    "ref": "manos-solidarias",
+                    "nombre": "Manos Solidarias",
+                    "nivelOperativo": 2,
+                    "habilitada": true
+                  },
+                  {
+                    "ref": "rescatistas-unidos",
+                    "nombre": "Rescatistas Unidos",
+                    "nivelOperativo": 3,
+                    "habilitada": true
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "operationId": "listarOngs"
+      }
+    },
+    "/ongs/{ref}/recursos": {
+      "parameters": [
+        {
+          "name": "ref",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "example": "rescatistas-unidos"
+        }
+      ],
+      "put": {
+        "tags": [
+          "Recursos"
+        ],
+        "summary": "Alta/actualización del stock de una ONG",
+        "description": "Rol: integracion. Crea o actualiza `cantidadTotal` de los recursos\nenviados; los no enviados quedan como estaban. Devuelve el stock\ncompleto de la ONG. 409 si un total quedaría por debajo de lo ya\ncomprometido (`detalle.insuficientes`); en ese caso no cambia nada.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/StockItem"
+                }
+              },
+              "example": [
+                {
+                  "recursoCodigo": "paramedicos",
+                  "cantidadTotal": 6
+                },
+                {
+                  "recursoCodigo": "raciones",
+                  "cantidadTotal": 500
+                }
+              ]
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock actualizado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecursoOng"
+                  }
+                },
+                "example": [
+                  {
+                    "recursoCodigo": "raciones",
+                    "nombre": "Raciones de comida seca",
+                    "unidad": "raciones",
+                    "cantidadTotal": 500,
+                    "cantidadComprometida": 0,
+                    "cantidadDisponible": 500
+                  },
+                  {
+                    "recursoCodigo": "paramedicos",
+                    "nombre": "Paramédicos",
+                    "unidad": "personas",
+                    "cantidadTotal": 6,
+                    "cantidadComprometida": 3,
+                    "cantidadDisponible": 3
+                  }
+                ]
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflicto (ej. stock insuficiente o ref duplicado)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "message": "El nuevo total no puede ser menor a lo ya comprometido.",
+                  "detalle": {
+                    "insuficientes": [
+                      {
+                        "recursoCodigo": "paramedicos",
+                        "cantidadTotal": 2,
+                        "cantidadComprometida": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "operationId": "actualizarStockOng"
+      },
+      "get": {
+        "tags": [
+          "Recursos"
+        ],
+        "summary": "Stock de una ONG (total, comprometido, disponible)",
+        "description": "Rol: integracion, o la propia ONG.",
+        "responses": {
+          "200": {
+            "description": "Stock de la ONG",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecursoOng"
+                  }
+                },
+                "example": [
+                  {
+                    "recursoCodigo": "paramedicos",
+                    "nombre": "Paramédicos",
+                    "unidad": "personas",
+                    "cantidadTotal": 6,
+                    "cantidadComprometida": 3,
+                    "cantidadDisponible": 3
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "operationId": "consultarStockOng"
+      }
+    },
+    "/recursos/disponibilidad": {
+      "get": {
+        "tags": [
+          "Recursos"
+        ],
+        "summary": "Disponibilidad global por recurso",
+        "description": "Rol: cualquier usuario autenticado. Suma entre las ONGs habilitadas,\ncon todo el catálogo (0 si nadie tiene el recurso).\n",
+        "responses": {
+          "200": {
+            "description": "Disponibilidad por recursoCodigo",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Disponibilidad"
+                  }
+                },
+                "example": [
+                  {
+                    "recursoCodigo": "paramedicos",
+                    "nombre": "Paramédicos",
+                    "unidad": "personas",
+                    "cantidadTotal": 8,
+                    "cantidadComprometida": 3,
+                    "cantidadDisponible": 5,
+                    "categoria": "salud",
+                    "ongsConDisponible": 2
+                  }
+                ]
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "operationId": "disponibilidadGlobal"
+      }
+    },
+    "/validaciones": {
+      "post": {
+        "tags": [
+          "Validación y compromiso"
+        ],
+        "summary": "Evalúa ofertas por niveles de competencia — Pendiente (Pista B)",
+        "description": "Rol: integracion. Lee el stock con `SELECT ... FOR UPDATE` (ordenado por\nid) dentro de una transacción; no reserva. Nunca rechaza en forma\nbinaria: toda oferta recibe un perfil.\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidacionRequest"
+              },
+              "example": {
+                "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                "severidad": "alta",
+                "lotes": [
+                  {
+                    "id": "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                    "recursoCodigo": "paramedicos",
+                    "cantidadSolicitada": 5
+                  }
+                ],
+                "ofertas": [
+                  {
+                    "ofertaId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                    "ongs": [
+                      {
+                        "ref": "rescatistas-unidos",
+                        "rol": "principal"
+                      }
+                    ],
+                    "items": [
+                      {
+                        "loteId": "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                        "recursoCodigo": "paramedicos",
+                        "cantidadOfrecida": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Perfil de cada oferta y resumen de cobertura",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidacionResponse"
+                },
+                "example": {
+                  "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                  "resultados": [
+                    {
+                      "ofertaId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                      "nivelHabilitacion": "PLENO",
+                      "rolSugerido": "principal",
+                      "nivelRiesgoPermitido": "alta",
+                      "capacidadesHabilitadas": [
+                        {
+                          "loteId": "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                          "recursoCodigo": "paramedicos",
+                          "cantidadHabilitada": 3,
+                          "cantidadOfrecida": 3
+                        }
+                      ],
+                      "observaciones": [
+                        "Cubre 3 de 5 paramédicos solicitados."
+                      ]
+                    }
+                  ],
+                  "resumen": {
+                    "todosLosLotesCubiertos": false,
+                    "cobertura": [
+                      {
+                        "loteId": "9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
+                        "solicitada": 5,
+                        "cubierta": 3
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "operationId": "validarOfertas"
+      }
+    },
+    "/compromisos": {
+      "post": {
+        "tags": [
+          "Validación y compromiso"
+        ],
+        "summary": "Reserva transaccional de las ofertas adjudicadas — Pendiente (Pista B)",
+        "description": "Rol: integracion. Todo o nada; idempotente por (emergenciaId, ofertaId).\nReparte automáticamente entre las ONGs de la oferta (principal primero).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompromisoRequest"
+              },
+              "example": {
+                "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                "ofertas": [
+                  {
+                    "ofertaId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                    "ongs": [
+                      {
+                        "ref": "rescatistas-unidos",
+                        "rol": "principal"
+                      }
+                    ],
+                    "items": [
+                      {
+                        "recursoCodigo": "paramedicos",
+                        "cantidad": 3
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Recursos comprometidos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompromisoResponse"
+                },
+                "example": {
+                  "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                  "compromisos": [
+                    {
+                      "compromisoId": "c0ffee00-1234-4abc-9def-000000000001",
+                      "ofertaId": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+                      "reparto": [
+                        {
+                          "ongRef": "rescatistas-unidos",
+                          "recursoCodigo": "paramedicos",
+                          "cantidad": 3
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "operationId": "comprometerRecursos"
+      }
+    },
+    "/emergencias/{emergenciaId}/finalizacion": {
+      "parameters": [
+        {
+          "name": "emergenciaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Cierre"
+        ],
+        "summary": "Informa las ONGs que terminaron su actividad",
+        "description": "Rol: integracion. Registra la finalización de cada ONG en la\nemergencia (idempotente; no libera recursos). `ongsSinFinalizar` lista\nlas ONGs con compromisos activos que todavía no informaron. 400 si\n`ongRefs` está vacío o si alguna ONG no existe\n(`detalle.ongRefsDesconocidas`).\n",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "ongRefs"
+                ],
+                "properties": {
+                  "ongRefs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": [
+                      "rescatistas-unidos"
+                    ]
+                  }
+                }
+              },
+              "example": {
+                "ongRefs": [
+                  "rescatistas-unidos"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Finalización registrada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FinalizacionResponse"
+                },
+                "example": {
+                  "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                  "finalizadas": [
+                    {
+                      "ongRef": "rescatistas-unidos",
+                      "finalizadaAt": "2026-10-20T15:00:00.000Z"
+                    }
+                  ],
+                  "ongsSinFinalizar": [
+                    "manos-solidarias"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "operationId": "informarFinalizacion"
+      }
+    },
+    "/emergencias/{emergenciaId}/cierre": {
+      "parameters": [
+        {
+          "name": "emergenciaId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "post": {
+        "tags": [
+          "Cierre"
+        ],
+        "summary": "Cierra el proyecto y libera todo lo comprometido",
+        "description": "Rol: integracion. Pasa a `liberado` los compromisos activos de la\nemergencia y devuelve el stock a las ONGs, en una transacción con\n`SELECT ... FOR UPDATE` (compromisos y después `ong_recursos`, por id).\nIdempotente y seguro ante llamadas concurrentes: solo la primera\nlibera. Siempre 200, también sin compromisos.\n",
+        "responses": {
+          "200": {
+            "description": "Recursos liberados",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CierreResponse"
+                },
+                "example": {
+                  "emergenciaId": "3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c",
+                  "compromisosLiberados": 2,
+                  "recursosLiberados": [
+                    {
+                      "ongRef": "manos-solidarias",
+                      "recursoCodigo": "paramedicos",
+                      "cantidad": 1
+                    },
+                    {
+                      "ongRef": "rescatistas-unidos",
+                      "recursoCodigo": "paramedicos",
+                      "cantidad": 3
+                    }
+                  ],
+                  "ongsSinFinalizar": []
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "operationId": "cerrarEmergencia"
+      }
+    }
+  }
+}
