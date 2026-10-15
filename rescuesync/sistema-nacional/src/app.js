@@ -7,6 +7,8 @@ import { errorHandler, notFoundHandler } from './errors.js';
 import authRoutes from './routes/auth-routes.js';
 import docsRoutes from './routes/docs-routes.js';
 import healthRoutes from './routes/health-routes.js';
+import ongRoutes from './routes/ong-routes.js';
+import recursosRoutes from './routes/recursos-routes.js';
 
 // La app se arma separada de `listen` (index.js) para poder levantarla en
 // los tests sin abrir un puerto fijo.
@@ -35,8 +37,10 @@ app.use('/auth', authRoutes);
 app.use('/health', healthRoutes);
 app.use(docsRoutes);
 
-// Las rutas del dominio (Pista B: /ongs, /recursos, /validaciones,
-// /compromisos, /emergencias) se montan acá, cada una con requireAuth.
+// Dominio (todas con requireAuth adentro del router).
+app.use('/ongs', ongRoutes);
+app.use('/recursos', recursosRoutes);
+// Pista B: /validaciones, /compromisos y /emergencias se montan acá.
 
 app.use(notFoundHandler);
 app.use(errorHandler);
