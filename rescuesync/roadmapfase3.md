@@ -221,13 +221,34 @@ y historial, esquema de BD con migraciones, docker-compose.
 
 Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a completar al repartir.
 
+### Avance al 15/10 (Pista A — MiloEspi)
+
+- **Hecho:** E3-01, E3-10 a E3-17, E3-20 y E3-23. El SN corre en local con
+  Docker; 28 tests en verde (incluye 8 cierres concurrentes). Ramas
+  encadenadas `feat/e3-sistema-nacional-base` → `feat/e3-20-onboarding-ongs`
+  → `feat/e3-23-finalizacion-cierre` → `feat/e3-26-swagger`: alcanza con un
+  PR desde la última hacia `main`.
+- **E3-26:** OpenAPI completo con ejemplos y `npm run docs:export` (YAML,
+  JSON, HTML y PDF en `docs/sistema-nacional-api/`). Falta re-exportar con
+  la URL de Render y cuando la Pista B termine `/validaciones` y
+  `/compromisos`.
+- **E3-08 / E3-80:** proyecto Neon `rescuesync-sn` creado (AWS US East 2,
+  Ohio) y conexión directa probada. Las migraciones corren solas al
+  arrancar el servicio en Render.
+- **E3-81 (bloqueado):** Render no puede leer el repo porque es privado y de
+  la cuenta personal de Federico. Opciones: que Federico instale la app de
+  Render en el repo, que configure él el servicio, o hacer el repo público.
+- **Para la Pista B:** `/compromisos` tiene que bloquear en el mismo orden
+  que el cierre (primero `compromisos`, después `ong_recursos`, `ORDER BY
+  id`); ver `docs/api-contracts-sistema-nacional.md`.
+
 ### Fase 0 — Acuerdos (todos) · ~1 h, bloquea todo
 
 | ID | Tarea | Resp. |
 |---|---|---|
 | [x] E3-01 | Copiar las secciones 4 y 5 a `docs/api-contracts-sistema-nacional.md` y `docs/api-contracts.md` (fuente única) | MiloEspi |
 | [x] E3-02 a E3-07, E3-09 | Decisiones de la sección 2 | — |
-| [ ] E3-08 | Crear cuentas de Neon y Render (se hace en la Fase 6; no bloquea el desarrollo local) | |
+| [ ] E3-08 | Crear cuentas de Neon y Render (se hace en la Fase 6; no bloquea el desarrollo local) | MiloEspi |
 | [ ] E3-09b | Validar la regla de reformular/reabrir de la sección 2 (la única decisión que el equipo todavía no vio) | |
 | [ ] E3-0R | Repartir pistas y completar la columna "Resp." de todo este documento | |
 
@@ -308,8 +329,8 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
-| [ ] E3-80 | Neon: crear la base, correr migraciones y guardar `DATABASE_URL` (usar conexión directa, no el pooler en modo transacción) | 1 | |
-| [ ] E3-81 | Render: Web Service Docker apuntando a `rescuesync/sistema-nacional`, variables (`DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`), healthcheck en `/health` | 2 | |
+| [ ] E3-80 | Neon: crear la base, correr migraciones y guardar `DATABASE_URL` (usar conexión directa, no el pooler en modo transacción) | 1 | MiloEspi |
+| [ ] E3-81 | Render: Web Service Docker apuntando a `rescuesync/sistema-nacional`, variables (`DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`), healthcheck en `/health` | 2 | MiloEspi |
 | [ ] E3-82 | Seed de producción: cliente de integración, ONGs demo (`rescatistas-unidos`, `manos-solidarias`) y su stock limitado | 1 | |
 | [ ] E3-83 | Swagger público en `/docs` probado con "Authorize" servicio por servicio | 1 | |
 | [ ] E3-84 | Backup de la base (dump fuera del repo) y nota sobre la política de 30 días | 1 | |
