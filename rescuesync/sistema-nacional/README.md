@@ -39,6 +39,10 @@ curl -X POST http://localhost:5000/auth/login -H "Content-Type: application/json
 O abrir `http://localhost:5000/docs`, hacer login, copiar el `accessToken` y
 pegarlo en **Authorize**.
 
+> **Windows:** el `--watch` no detecta cambios en archivos montados desde
+> Windows. Después de editar `src/`, reiniciar la API con
+> `docker compose restart api`.
+
 ## Variables de entorno
 
 | Variable                                             | Para qué                                                                              |

@@ -45,11 +45,11 @@ Origen: sección 4 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01).
 | `POST /auth/login` | público | `{username,password}` → `{accessToken,tokenType:"Bearer",expiresIn}` | Hecho |
 | `GET /health` | público | Healthcheck (API + base) | Hecho |
 | `GET /docs` | público | Swagger UI (`/docs.json` con el OpenAPI) | Hecho (esqueleto) |
-| `POST /ongs` | integracion | Onboarding: `{ref,nombre,nivelOperativo(1-4),username,password,recursos?:[{recursoCodigo,cantidadTotal}]}` → crea ONG habilitada + su usuario | Pendiente |
-| `GET /ongs` | autenticado | ONGs habilitadas | Pendiente |
-| `PUT /ongs/:ref/recursos` | integracion | Alta/actualización de stock: `[{recursoCodigo,cantidadTotal}]` | Pendiente |
-| `GET /ongs/:ref/recursos` | integracion, o la propia `ong` | Total, comprometido y disponible por recurso | Pendiente |
-| `GET /recursos/disponibilidad` | autenticado | Disponibilidad global por `recursoCodigo` | Pendiente |
+| `POST /ongs` | integracion | Onboarding: `{ref,nombre,nivelOperativo(1-4),username,password,recursos?:[{recursoCodigo,cantidadTotal}]}` → crea ONG habilitada + su usuario | Hecho |
+| `GET /ongs` | autenticado | ONGs habilitadas | Hecho |
+| `PUT /ongs/:ref/recursos` | integracion | Alta/actualización de stock: `[{recursoCodigo,cantidadTotal}]` | Hecho |
+| `GET /ongs/:ref/recursos` | integracion, o la propia `ong` | Total, comprometido y disponible por recurso | Hecho |
+| `GET /recursos/disponibilidad` | autenticado | Disponibilidad global por `recursoCodigo` | Hecho |
 | `POST /validaciones` | integracion | Evalúa ofertas (ver abajo). Lee con lock, no reserva | Pendiente |
 | `POST /compromisos` | integracion | Reserva transaccional de **todas** las ofertas adjudicadas (todo o nada); idempotente por `(emergenciaId, ofertaId)` | Pendiente |
 | `POST /emergencias/:emergenciaId/finalizacion` | integracion | `{ongRefs:[…]}`: ONGs que terminaron su actividad | Pendiente |
@@ -70,6 +70,25 @@ Origen: sección 4 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01).
 `400` si falta `username` o `password`; `401` si no coinciden (mismo
 mensaje exista o no el usuario); `429` después de 10 intentos en 15 minutos
 desde la misma IP.
+
+### ONGs y stock (E3-20)
+
+- `POST /ongs` → `201` con la ONG, su `username` y `recursos` (stock como en
+  `GET /ongs/:ref/recursos`). Todo o nada: si falla algo, no queda la ONG a
+  medio crear. `400` con `detalle.recursosDesconocidos` si un código no está
+  en el catálogo; `409` con `detalle.campo` (`ref` o `username`) si ya existe.
+  `password` de al menos 8 caracteres; `ref` en minúsculas con guiones.
+- `GET /ongs` → `[{ ref, nombre, nivelOperativo, habilitada }]`.
+- `PUT /ongs/:ref/recursos` → crea o actualiza `cantidadTotal` de los
+  recursos enviados (los no enviados no cambian) y devuelve el stock completo.
+  `409` con `detalle.insuficientes` si un total quedaría por debajo de lo ya
+  comprometido; en ese caso no cambia nada. `404` si la ONG no existe.
+- `GET /ongs/:ref/recursos` →
+  `[{ recursoCodigo, nombre, unidad, cantidadTotal, cantidadComprometida, cantidadDisponible }]`.
+  Una cuenta `ong` solo puede pedir el suyo (`403` si no).
+- `GET /recursos/disponibilidad` → mismo shape por recurso, sumado entre las
+  ONGs habilitadas, más `categoria` y `ongsConDisponible`. Incluye todo el
+  catálogo (en 0 si nadie lo tiene).
 
 ### `POST /validaciones`
 

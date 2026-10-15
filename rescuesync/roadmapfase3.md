@@ -248,7 +248,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
-| [ ] E3-20 | Onboarding y catálogo: `POST /ongs` (ONG + usuario), `GET /ongs`, `PUT/GET /ongs/:ref/recursos`, `GET /recursos/disponibilidad` | 5 | |
+| [x] E3-20 | Onboarding y catálogo: `POST /ongs` (ONG + usuario), `GET /ongs`, `PUT/GET /ongs/:ref/recursos`, `GET /recursos/disponibilidad` | 5 | MiloEspi |
 | [ ] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada | 6 | |
 | [ ] E3-22 | Compromiso en lote (todo o nada): reparto automático por ONG, `409` con detalle si falta stock, idempotencia por `(emergenciaId, ofertaId)` | 6 | |
 | [ ] E3-23 | Finalización por ONG y cierre del proyecto con liberación (`cantidad_comprometida -=`) | 4 | |

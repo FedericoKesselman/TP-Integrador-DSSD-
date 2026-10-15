@@ -80,13 +80,33 @@ components:
         nombre: { type: string }
         nivelOperativo: { type: integer }
         habilitada: { type: boolean }
+    OngCreada:
+      allOf:
+        - $ref: '#/components/schemas/Ong'
+        - type: object
+          properties:
+            username: { type: string, example: rescatistas-unidos }
+            recursos:
+              type: array
+              items: { $ref: '#/components/schemas/RecursoOng' }
     RecursoOng:
       type: object
       properties:
         recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+        nombre: { type: string, example: Paramédicos }
+        unidad: { type: string, example: personas }
         cantidadTotal: { type: integer }
         cantidadComprometida: { type: integer }
         cantidadDisponible: { type: integer }
+    Disponibilidad:
+      allOf:
+        - $ref: '#/components/schemas/RecursoOng'
+        - type: object
+          properties:
+            categoria: { type: string, example: salud }
+            ongsConDisponible:
+              type: integer
+              description: ONGs habilitadas con algo disponible de este recurso
     OngEnOferta:
       type: object
       required: [ref, rol]
@@ -277,8 +297,12 @@ paths:
   /ongs:
     post:
       tags: [ONGs]
-      summary: Onboarding de ONG (crea la ONG habilitada y su usuario) — Pendiente (Pista B)
-      description: 'Rol: integracion.'
+      summary: Onboarding de ONG (crea la ONG habilitada y su usuario)
+      description: |
+        Rol: integracion. Crea la ONG habilitada, su cuenta (rol `ong`) y el
+        stock inicial en una sola transacción (todo o nada). 400 si algún
+        `recursoCodigo` no existe en el catálogo (`detalle.recursosDesconocidos`);
+        409 si el `ref` o el `username` ya existen (`detalle.campo`).
       requestBody:
         required: true
         content:
@@ -289,14 +313,14 @@ paths:
           description: ONG creada
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Ong' }
+              schema: { $ref: '#/components/schemas/OngCreada' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
     get:
       tags: [ONGs]
-      summary: ONGs habilitadas — Pendiente (Pista B)
+      summary: ONGs habilitadas
       description: 'Rol: cualquier usuario autenticado.'
       responses:
         '200':
@@ -318,8 +342,12 @@ paths:
         }
     put:
       tags: [Recursos]
-      summary: Alta/actualización del stock de una ONG — Pendiente (Pista B)
-      description: 'Rol: integracion.'
+      summary: Alta/actualización del stock de una ONG
+      description: |
+        Rol: integracion. Crea o actualiza `cantidadTotal` de los recursos
+        enviados; los no enviados quedan como estaban. Devuelve el stock
+        completo de la ONG. 409 si un total quedaría por debajo de lo ya
+        comprometido (`detalle.insuficientes`); en ese caso no cambia nada.
       requestBody:
         required: true
         content:
@@ -339,9 +367,10 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
     get:
       tags: [Recursos]
-      summary: Stock de una ONG (total, comprometido, disponible) — Pendiente (Pista B)
+      summary: Stock de una ONG (total, comprometido, disponible)
       description: 'Rol: integracion, o la propia ONG.'
       responses:
         '200':
@@ -357,8 +386,10 @@ paths:
   /recursos/disponibilidad:
     get:
       tags: [Recursos]
-      summary: Disponibilidad global por recurso — Pendiente (Pista B)
-      description: 'Rol: cualquier usuario autenticado.'
+      summary: Disponibilidad global por recurso
+      description: |
+        Rol: cualquier usuario autenticado. Suma entre las ONGs habilitadas,
+        con todo el catálogo (0 si nadie tiene el recurso).
       responses:
         '200':
           description: Disponibilidad por recursoCodigo
@@ -366,7 +397,7 @@ paths:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/RecursoOng' }
+                items: { $ref: '#/components/schemas/Disponibilidad' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /validaciones:
     post:
