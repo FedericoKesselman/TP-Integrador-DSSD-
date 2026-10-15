@@ -221,6 +221,37 @@ components:
                     ongRef: { type: string }
                     recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
                     cantidad: { type: integer }
+    FinalizacionResponse:
+      type: object
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        finalizadas:
+          type: array
+          items:
+            type: object
+            properties:
+              ongRef: { type: string, example: rescatistas-unidos }
+              finalizadaAt: { type: string, format: date-time }
+        ongsSinFinalizar:
+          type: array
+          items: { type: string }
+          example: [manos-solidarias]
+    CierreResponse:
+      type: object
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        compromisosLiberados: { type: integer, example: 2 }
+        recursosLiberados:
+          type: array
+          items:
+            type: object
+            properties:
+              ongRef: { type: string, example: rescatistas-unidos }
+              recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+              cantidad: { type: integer, example: 4 }
+        ongsSinFinalizar:
+          type: array
+          items: { type: string }
   responses:
     BadRequest:
       description: Datos inválidos
@@ -448,8 +479,13 @@ paths:
       - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [Cierre]
-      summary: Informa las ONGs que terminaron su actividad — Pendiente (Pista B)
-      description: 'Rol: integracion.'
+      summary: Informa las ONGs que terminaron su actividad
+      description: |
+        Rol: integracion. Registra la finalización de cada ONG en la
+        emergencia (idempotente; no libera recursos). `ongsSinFinalizar` lista
+        las ONGs con compromisos activos que todavía no informaron. 400 si
+        `ongRefs` está vacío o si alguna ONG no existe
+        (`detalle.ongRefsDesconocidas`).
       requestBody:
         required: true
         content:
@@ -460,9 +496,15 @@ paths:
               properties:
                 ongRefs:
                   type: array
+                  minItems: 1
                   items: { type: string }
+                  example: [rescatistas-unidos]
       responses:
-        '200': { description: Finalización registrada }
+        '200':
+          description: Finalización registrada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FinalizacionResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -471,10 +513,19 @@ paths:
       - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
     post:
       tags: [Cierre]
-      summary: Cierra el proyecto y libera todo lo comprometido — Pendiente (Pista B)
-      description: 'Rol: integracion.'
+      summary: Cierra el proyecto y libera todo lo comprometido
+      description: |
+        Rol: integracion. Pasa a `liberado` los compromisos activos de la
+        emergencia y devuelve el stock a las ONGs, en una transacción con
+        `SELECT ... FOR UPDATE` (compromisos y después `ong_recursos`, por id).
+        Idempotente y seguro ante llamadas concurrentes: solo la primera
+        libera. Siempre 200, también sin compromisos.
       responses:
-        '200': { description: Recursos liberados }
+        '200':
+          description: Recursos liberados
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CierreResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }

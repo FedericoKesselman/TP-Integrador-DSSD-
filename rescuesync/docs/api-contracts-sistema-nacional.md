@@ -52,8 +52,8 @@ Origen: sección 4 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01).
 | `GET /recursos/disponibilidad` | autenticado | Disponibilidad global por `recursoCodigo` | Hecho |
 | `POST /validaciones` | integracion | Evalúa ofertas (ver abajo). Lee con lock, no reserva | Pendiente |
 | `POST /compromisos` | integracion | Reserva transaccional de **todas** las ofertas adjudicadas (todo o nada); idempotente por `(emergenciaId, ofertaId)` | Pendiente |
-| `POST /emergencias/:emergenciaId/finalizacion` | integracion | `{ongRefs:[…]}`: ONGs que terminaron su actividad | Pendiente |
-| `POST /emergencias/:emergenciaId/cierre` | integracion | Cierra el proyecto y libera todo lo comprometido | Pendiente |
+| `POST /emergencias/:emergenciaId/finalizacion` | integracion | `{ongRefs:[…]}`: ONGs que terminaron su actividad | Hecho |
+| `POST /emergencias/:emergenciaId/cierre` | integracion | Cierra el proyecto y libera todo lo comprometido | Hecho |
 
 ### `POST /auth/login`
 
@@ -153,12 +153,40 @@ El SN reparte automáticamente la cantidad entre las ONGs de la oferta
 (principal primero, luego asociadas, hasta su disponible). Si falta stock →
 `409` con el detalle de qué recurso y de qué ONG; no se reserva nada.
 
-### Finalización y cierre
+### Finalización y cierre (E3-23)
 
-- `POST /emergencias/:emergenciaId/finalizacion` con `{ "ongRefs": ["…"] }`
-  registra qué ONGs terminaron su actividad.
-- `POST /emergencias/:emergenciaId/cierre` cierra el proyecto y libera todo
-  lo comprometido (`cantidad_comprometida -= …`).
+`POST /emergencias/:emergenciaId/finalizacion` con `{ "ongRefs": ["…"] }`
+registra qué ONGs terminaron su actividad. No libera recursos. Es
+idempotente: repetir una ONG no cambia su fecha.
+
+```json
+{ "emergenciaId": "uuid",
+  "finalizadas": [{ "ongRef": "rescatistas-unidos", "finalizadaAt": "2026-10-20T15:00:00.000Z" }],
+  "ongsSinFinalizar": ["manos-solidarias"] }
+```
+
+`ongsSinFinalizar` = ONGs con compromisos activos en la emergencia que
+todavía no informaron. `400` si `ongRefs` viene vacío o si alguna ONG no
+existe en el SN (`detalle.ongRefsDesconocidas`).
+
+`POST /emergencias/:emergenciaId/cierre` (sin body) cierra el proyecto:
+pasa a `liberado` todos los compromisos activos de la emergencia y les
+devuelve el stock a las ONGs (`cantidad_comprometida -= …`).
+
+```json
+{ "emergenciaId": "uuid", "compromisosLiberados": 2,
+  "recursosLiberados": [{ "ongRef": "rescatistas-unidos", "recursoCodigo": "paramedicos", "cantidad": 4 }],
+  "ongsSinFinalizar": [] }
+```
+
+- Siempre `200`, también sin compromisos (emergencia sin ofertas
+  adjudicadas): devuelve `compromisosLiberados: 0`.
+- Idempotente y seguro ante reintentos o llamadas concurrentes de Bonita:
+  solo la primera llamada libera; las demás devuelven 0.
+- No exige que todas las ONGs hayan finalizado (eso lo controla la web-app
+  en "Confirmar cierre de ejecución"); `ongsSinFinalizar` lo informa.
+
+Ambos endpoints: rol `integracion`; `400` si `emergenciaId` no es un UUID.
 
 ## Concurrencia
 
@@ -166,6 +194,12 @@ Una transacción por llamada (`withTransaction` en `sistema-nacional/src/db.js`)
 `SELECT … FOR UPDATE` sobre las filas de `ong_recursos` involucradas,
 **ordenadas por id** (evita deadlocks); `CHECK (cantidad_comprometida <=
 cantidad_total)` como red de seguridad en la base.
+
+**Orden de bloqueo** (obligatorio para todo endpoint que toque stock, así
+dos transacciones nunca se esperan en cruz): primero las filas de
+`compromisos` que se van a modificar, después las de `ong_recursos`, siempre
+`ORDER BY id`. El cierre (E3-23) ya lo respeta; `/compromisos` (E3-22) tiene
+que hacer lo mismo si consulta compromisos existentes para la idempotencia.
 
 ## Cuentas
 
