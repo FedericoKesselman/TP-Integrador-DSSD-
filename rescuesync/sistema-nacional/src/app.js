@@ -6,6 +6,7 @@ import config from './config.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import authRoutes from './routes/auth-routes.js';
 import docsRoutes from './routes/docs-routes.js';
+import emergenciaRoutes from './routes/emergencia-routes.js';
 import healthRoutes from './routes/health-routes.js';
 import ongRoutes from './routes/ong-routes.js';
 import recursosRoutes from './routes/recursos-routes.js';
@@ -40,7 +41,8 @@ app.use(docsRoutes);
 // Dominio (todas con requireAuth adentro del router).
 app.use('/ongs', ongRoutes);
 app.use('/recursos', recursosRoutes);
-// Pista B: /validaciones, /compromisos y /emergencias se montan acá.
+app.use('/emergencias', emergenciaRoutes);
+// Pista B: /validaciones y /compromisos se montan acá.
 
 app.use(notFoundHandler);
 app.use(errorHandler);
