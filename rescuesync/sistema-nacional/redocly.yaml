@@ -1,0 +1,8 @@
+# Config de `npx redocly lint openapi.yaml` (E3-26).
+extends:
+  - recommended
+rules:
+  # La licencia es académica, sin URL ni identificador SPDX.
+  info-license-strict: off
+  # /health solo puede devolver 200 o 503: no tiene errores 4xx.
+  operation-4xx-response: off

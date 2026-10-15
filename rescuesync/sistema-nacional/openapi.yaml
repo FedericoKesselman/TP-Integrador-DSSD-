@@ -17,16 +17,26 @@ info:
     Contrato completo: `docs/api-contracts-sistema-nacional.md`. Los
     endpoints marcados *Pendiente (Pista B)* están acordados pero todavía no
     implementados.
+  license:
+    name: Uso académico — TP integrador DSSD 2026
+  contact:
+    name: Grupo RescueSync
 servers:
   - url: /
     description: Este mismo servidor (local o Render)
 tags:
   - name: Auth
+    description: Login y emisión del JWT.
   - name: Sistema
+    description: Estado del servicio.
   - name: ONGs
+    description: Onboarding y consulta de ONGs habilitadas.
   - name: Recursos
+    description: Stock por ONG y disponibilidad global.
   - name: Validación y compromiso
+    description: Validación por niveles de competencia y compromiso transaccional con locking (Pista B).
   - name: Cierre
+    description: Finalización por ONG, cierre del proyecto y liberación de recursos.
 components:
   securitySchemes:
     bearerAuth:
@@ -39,6 +49,10 @@ components:
       required: [message]
       properties:
         message: { type: string, example: Token ausente o inválido. }
+        detalle:
+          type: object
+          description: Opcional. Datos para resolver el error (ej. qué recurso no alcanza).
+          additionalProperties: true
     LoginRequest:
       type: object
       required: [username, password]
@@ -292,19 +306,34 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/LoginRequest' }
+            example:
+              username: rescuesync-integracion
+              password: '********'
       responses:
         '200':
           description: Token emitido
           content:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
+              example:
+                accessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiaW50ZWdyYWNpb24i…
+                tokenType: Bearer
+                expiresIn: 3600
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        '401':
+          description: Falta el token o es inválido / está vencido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Usuario o contraseña incorrectos.
         '429':
           description: Demasiados intentos
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+      operationId: login
   /health:
     get:
       tags: [Sistema]
@@ -320,11 +349,15 @@ paths:
                 properties:
                   status: { type: string, example: ok }
                   db: { type: string, example: ok }
+              example:
+                status: ok
+                db: ok
         '503':
           description: La base no responde
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+      operationId: healthcheck
   /ongs:
     post:
       tags: [ONGs]
@@ -339,16 +372,56 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/OngAlta' }
+            example:
+              ref: rescatistas-unidos
+              nombre: Rescatistas Unidos
+              nivelOperativo: 3
+              username: rescatistas-unidos
+              password: '********'
+              recursos:
+                - recursoCodigo: paramedicos
+                  cantidadTotal: 4
+                - recursoCodigo: botes
+                  cantidadTotal: 2
       responses:
         '201':
           description: ONG creada
           content:
             application/json:
               schema: { $ref: '#/components/schemas/OngCreada' }
+              example:
+                ref: rescatistas-unidos
+                nombre: Rescatistas Unidos
+                nivelOperativo: 3
+                habilitada: true
+                username: rescatistas-unidos
+                recursos:
+                  - recursoCodigo: botes
+                    nombre: Botes de rescate
+                    unidad: unidades
+                    cantidadTotal: 2
+                    cantidadComprometida: 0
+                    cantidadDisponible: 2
+                  - recursoCodigo: paramedicos
+                    nombre: Paramédicos
+                    unidad: personas
+                    cantidadTotal: 4
+                    cantidadComprometida: 0
+                    cantidadDisponible: 4
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Conflicto (ej. stock insuficiente o ref duplicado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: Ya existe una ONG con ese ref.
+                detalle:
+                  campo: ref
+      operationId: crearOng
     get:
       tags: [ONGs]
       summary: ONGs habilitadas
@@ -361,7 +434,17 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Ong' }
+              example:
+                - ref: manos-solidarias
+                  nombre: Manos Solidarias
+                  nivelOperativo: 2
+                  habilitada: true
+                - ref: rescatistas-unidos
+                  nombre: Rescatistas Unidos
+                  nivelOperativo: 3
+                  habilitada: true
         '401': { $ref: '#/components/responses/Unauthorized' }
+      operationId: listarOngs
   /ongs/{ref}/recursos:
     parameters:
       - {
@@ -386,6 +469,11 @@ paths:
             schema:
               type: array
               items: { $ref: '#/components/schemas/StockItem' }
+            example:
+              - recursoCodigo: paramedicos
+                cantidadTotal: 6
+              - recursoCodigo: raciones
+                cantidadTotal: 500
       responses:
         '200':
           description: Stock actualizado
@@ -394,11 +482,37 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/RecursoOng' }
+              example:
+                - recursoCodigo: raciones
+                  nombre: Raciones de comida seca
+                  unidad: raciones
+                  cantidadTotal: 500
+                  cantidadComprometida: 0
+                  cantidadDisponible: 500
+                - recursoCodigo: paramedicos
+                  nombre: Paramédicos
+                  unidad: personas
+                  cantidadTotal: 6
+                  cantidadComprometida: 3
+                  cantidadDisponible: 3
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        '409':
+          description: Conflicto (ej. stock insuficiente o ref duplicado)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: El nuevo total no puede ser menor a lo ya comprometido.
+                detalle:
+                  insuficientes:
+                    - recursoCodigo: paramedicos
+                      cantidadTotal: 2
+                      cantidadComprometida: 3
+      operationId: actualizarStockOng
     get:
       tags: [Recursos]
       summary: Stock de una ONG (total, comprometido, disponible)
@@ -411,9 +525,17 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/RecursoOng' }
+              example:
+                - recursoCodigo: paramedicos
+                  nombre: Paramédicos
+                  unidad: personas
+                  cantidadTotal: 6
+                  cantidadComprometida: 3
+                  cantidadDisponible: 3
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+      operationId: consultarStockOng
   /recursos/disponibilidad:
     get:
       tags: [Recursos]
@@ -429,7 +551,17 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Disponibilidad' }
+              example:
+                - recursoCodigo: paramedicos
+                  nombre: Paramédicos
+                  unidad: personas
+                  cantidadTotal: 8
+                  cantidadComprometida: 3
+                  cantidadDisponible: 5
+                  categoria: salud
+                  ongsConDisponible: 2
         '401': { $ref: '#/components/responses/Unauthorized' }
+      operationId: disponibilidadGlobal
   /validaciones:
     post:
       tags: [Validación y compromiso]
@@ -443,15 +575,52 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/ValidacionRequest' }
+            example:
+              emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+              severidad: alta
+              lotes:
+                - id: 9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                  recursoCodigo: paramedicos
+                  cantidadSolicitada: 5
+              ofertas:
+                - ofertaId: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                  ongs:
+                    - ref: rescatistas-unidos
+                      rol: principal
+                  items:
+                    - loteId: 9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                      recursoCodigo: paramedicos
+                      cantidadOfrecida: 3
       responses:
         '200':
           description: Perfil de cada oferta y resumen de cobertura
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ValidacionResponse' }
+              example:
+                emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+                resultados:
+                  - ofertaId: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                    nivelHabilitacion: PLENO
+                    rolSugerido: principal
+                    nivelRiesgoPermitido: alta
+                    capacidadesHabilitadas:
+                      - loteId: 9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                        recursoCodigo: paramedicos
+                        cantidadHabilitada: 3
+                        cantidadOfrecida: 3
+                    observaciones:
+                      - Cubre 3 de 5 paramédicos solicitados.
+                resumen:
+                  todosLosLotesCubiertos: false
+                  cobertura:
+                    - loteId: 9c8b7a6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d
+                      solicitada: 5
+                      cubierta: 3
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+      operationId: validarOfertas
   /compromisos:
     post:
       tags: [Validación y compromiso]
@@ -464,16 +633,36 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CompromisoRequest' }
+            example:
+              emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+              ofertas:
+                - ofertaId: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                  ongs:
+                    - ref: rescatistas-unidos
+                      rol: principal
+                  items:
+                    - recursoCodigo: paramedicos
+                      cantidad: 3
       responses:
         '201':
           description: Recursos comprometidos
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CompromisoResponse' }
+              example:
+                emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+                compromisos:
+                  - compromisoId: c0ffee00-1234-4abc-9def-000000000001
+                    ofertaId: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+                    reparto:
+                      - ongRef: rescatistas-unidos
+                        recursoCodigo: paramedicos
+                        cantidad: 3
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+      operationId: comprometerRecursos
   /emergencias/{emergenciaId}/finalizacion:
     parameters:
       - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -499,15 +688,26 @@ paths:
                   minItems: 1
                   items: { type: string }
                   example: [rescatistas-unidos]
+            example:
+              ongRefs:
+                - rescatistas-unidos
       responses:
         '200':
           description: Finalización registrada
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FinalizacionResponse' }
+              example:
+                emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+                finalizadas:
+                  - ongRef: rescatistas-unidos
+                    finalizadaAt: 2026-10-20T15:00:00.000Z
+                ongsSinFinalizar:
+                  - manos-solidarias
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+      operationId: informarFinalizacion
   /emergencias/{emergenciaId}/cierre:
     parameters:
       - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
@@ -526,6 +726,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CierreResponse' }
+              example:
+                emergenciaId: 3f2b8c1e-7a4d-4e2b-9c1a-5d6e7f8a9b0c
+                compromisosLiberados: 2
+                recursosLiberados:
+                  - ongRef: manos-solidarias
+                    recursoCodigo: paramedicos
+                    cantidad: 1
+                  - ongRef: rescatistas-unidos
+                    recursoCodigo: paramedicos
+                    cantidad: 3
+                ongsSinFinalizar: []
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+      operationId: cerrarEmergencia
