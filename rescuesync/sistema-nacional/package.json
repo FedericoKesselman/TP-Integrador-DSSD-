@@ -19,7 +19,9 @@
     "format": "prettier --write .",
     "migrate:create": "node-pg-migrate create -j sql --envPath .env",
     "migrate:up": "node-pg-migrate up --envPath .env",
-    "migrate:down": "node-pg-migrate down --envPath .env"
+    "migrate:down": "node-pg-migrate down --envPath .env",
+    "docs:lint": "redocly lint openapi.yaml",
+    "docs:export": "node scripts/export-docs.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -35,6 +37,7 @@
     "yaml": "^2.6.1"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.64.0",
     "eslint": "^8.57.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^9.1.0",

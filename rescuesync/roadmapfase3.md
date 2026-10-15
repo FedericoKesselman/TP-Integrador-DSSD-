@@ -254,7 +254,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 | [x] E3-23 | Finalización por ONG y cierre del proyecto con liberación (`cantidad_comprometida -=`) | 4 | MiloEspi |
 | [ ] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking) | 3 | |
 | [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre) | 4 | |
-| [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega | 3 | |
+| [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega | 3 | MiloEspi |
 
 ### Fase 3 — Pista C · Bonita (guías paso a paso; cada cambio se carga en Studio)
 

@@ -67,6 +67,8 @@ pegarlo en **Authorize**.
 | `npm run seed`                        | Crea/actualiza la cuenta de integración                          |
 | `npm test`                            | Tests (`node --test`)                                            |
 | `npm run lint:fix` / `npm run format` | Antes de commitear                                               |
+| `npm run docs:lint`                   | Valida `openapi.yaml` (Redocly)                                  |
+| `npm run docs:export`                 | Exporta el Swagger para la entrega (ver abajo)                   |
 
 Dentro de Docker: `docker compose exec api npm run migrate:up`.
 
@@ -112,6 +114,19 @@ sistema-nacional/
   dentro de `asyncHandler`.
 - Al implementar un endpoint, sacarle el "Pendiente (Pista B)" en
   `openapi.yaml` y en el contrato.
+
+## Documento Swagger para la entrega (E3-26)
+
+```bash
+SN_PUBLIC_URL=https://<servicio>.onrender.com npm run docs:export
+```
+
+Genera en `../docs/sistema-nacional-api/`: `openapi.yaml`, `openapi.json`,
+`sistema-nacional-api.html` (se abre sin internet) y
+`sistema-nacional-api.pdf` (si encuentra Chrome o Edge; si no, definir
+`CHROME_PATH`). `SN_PUBLIC_URL` agrega la URL de Render como servidor.
+**Volver a exportar** cuando la Pista B termine `/validaciones` y
+`/compromisos`, y cuando esté la URL de producción.
 
 ## Producción (Render + Neon)
 
