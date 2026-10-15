@@ -1,0 +1,449 @@
+openapi: 3.0.3
+info:
+  title: Sistema Nacional de Gestión de Recursos y Riesgos
+  version: 0.1.0
+  description: |
+    API REST del Sistema Nacional (SN) de RescueSync. Gestiona ONGs y su stock
+    de recursos, valida ofertas por niveles de competencia y compromete/libera
+    recursos con locking en PostgreSQL.
+
+    **Autenticación:** `POST /auth/login` devuelve un JWT (HS256, 1 h). El
+    resto de los endpoints, salvo `/health` y `/docs`, exige
+    `Authorization: Bearer <token>`. Usá el botón **Authorize** con el token.
+
+    **Errores:** siempre `{ "message": "..." }` con el código HTTP correcto
+    (400, 401, 403, 404, 409).
+
+    Contrato completo: `docs/api-contracts-sistema-nacional.md`. Los
+    endpoints marcados *Pendiente (Pista B)* están acordados pero todavía no
+    implementados.
+servers:
+  - url: /
+    description: Este mismo servidor (local o Render)
+tags:
+  - name: Auth
+  - name: Sistema
+  - name: ONGs
+  - name: Recursos
+  - name: Validación y compromiso
+  - name: Cierre
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, example: Token ausente o inválido. }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: rescuesync-integracion }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, example: Bearer }
+        expiresIn: { type: integer, description: Segundos de validez, example: 3600 }
+    RecursoCodigo:
+      type: string
+      description: Id del catálogo (`recursos_catalogo.codigo`), igual al del cliente web.
+      example: paramedicos
+    StockItem:
+      type: object
+      required: [recursoCodigo, cantidadTotal]
+      properties:
+        recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+        cantidadTotal: { type: integer, minimum: 0, example: 10 }
+    OngAlta:
+      type: object
+      required: [ref, nombre, nivelOperativo, username, password]
+      properties:
+        ref: { type: string, example: rescatistas-unidos }
+        nombre: { type: string, example: Rescatistas Unidos }
+        nivelOperativo: { type: integer, minimum: 1, maximum: 4, example: 3 }
+        username: { type: string, example: rescatistas-unidos }
+        password: { type: string, format: password }
+        recursos:
+          type: array
+          items: { $ref: '#/components/schemas/StockItem' }
+    Ong:
+      type: object
+      properties:
+        ref: { type: string }
+        nombre: { type: string }
+        nivelOperativo: { type: integer }
+        habilitada: { type: boolean }
+    RecursoOng:
+      type: object
+      properties:
+        recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+        cantidadTotal: { type: integer }
+        cantidadComprometida: { type: integer }
+        cantidadDisponible: { type: integer }
+    OngEnOferta:
+      type: object
+      required: [ref, rol]
+      properties:
+        ref: { type: string, example: rescatistas-unidos }
+        rol: { type: string, enum: [principal, apoyo] }
+    ValidacionRequest:
+      type: object
+      required: [emergenciaId, severidad, lotes, ofertas]
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        severidad: { type: string, enum: [baja, media, alta, critica] }
+        lotes:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, format: uuid }
+              recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+              cantidadSolicitada: { type: integer, example: 5 }
+        ofertas:
+          type: array
+          items:
+            type: object
+            properties:
+              ofertaId: { type: string, format: uuid }
+              ongs:
+                type: array
+                items: { $ref: '#/components/schemas/OngEnOferta' }
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loteId: { type: string, format: uuid }
+                    recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+                    cantidadOfrecida: { type: integer, example: 3 }
+    ValidacionResponse:
+      type: object
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        resultados:
+          type: array
+          items:
+            type: object
+            properties:
+              ofertaId: { type: string, format: uuid }
+              nivelHabilitacion: { type: string, enum: [PLENO, PARCIAL, APOYO, SIN_CAPACIDAD] }
+              rolSugerido: { type: string, enum: [principal, apoyo] }
+              nivelRiesgoPermitido: { type: string, enum: [baja, media, alta, critica] }
+              capacidadesHabilitadas:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loteId: { type: string, format: uuid }
+                    recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+                    cantidadHabilitada: { type: integer }
+                    cantidadOfrecida: { type: integer }
+              observaciones:
+                type: array
+                items: { type: string }
+        resumen:
+          type: object
+          properties:
+            todosLosLotesCubiertos: { type: boolean }
+            cobertura:
+              type: array
+              items:
+                type: object
+                properties:
+                  loteId: { type: string, format: uuid }
+                  solicitada: { type: integer }
+                  cubierta: { type: integer }
+    CompromisoRequest:
+      type: object
+      required: [emergenciaId, ofertas]
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        ofertas:
+          type: array
+          items:
+            type: object
+            properties:
+              ofertaId: { type: string, format: uuid }
+              ongs:
+                type: array
+                items: { $ref: '#/components/schemas/OngEnOferta' }
+              items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+                    cantidad: { type: integer, example: 3 }
+    CompromisoResponse:
+      type: object
+      properties:
+        emergenciaId: { type: string, format: uuid }
+        compromisos:
+          type: array
+          items:
+            type: object
+            properties:
+              compromisoId: { type: string, format: uuid }
+              ofertaId: { type: string, format: uuid }
+              reparto:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ongRef: { type: string }
+                    recursoCodigo: { $ref: '#/components/schemas/RecursoCodigo' }
+                    cantidad: { type: integer }
+  responses:
+    BadRequest:
+      description: Datos inválidos
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Falta el token o es inválido / está vencido
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: El rol del token no puede usar este endpoint
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No existe
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Conflicto (ej. stock insuficiente o ref duplicado)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login y emisión del JWT
+      description: Público. Límite de 10 intentos cada 15 minutos por IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Token emitido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Demasiados intentos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /health:
+    get:
+      tags: [Sistema]
+      summary: Healthcheck (API y base)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, example: ok }
+                  db: { type: string, example: ok }
+        '503':
+          description: La base no responde
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /ongs:
+    post:
+      tags: [ONGs]
+      summary: Onboarding de ONG (crea la ONG habilitada y su usuario) — Pendiente (Pista B)
+      description: 'Rol: integracion.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OngAlta' }
+      responses:
+        '201':
+          description: ONG creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Ong' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    get:
+      tags: [ONGs]
+      summary: ONGs habilitadas — Pendiente (Pista B)
+      description: 'Rol: cualquier usuario autenticado.'
+      responses:
+        '200':
+          description: Lista de ONGs
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Ong' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /ongs/{ref}/recursos:
+    parameters:
+      - {
+          name: ref,
+          in: path,
+          required: true,
+          schema: { type: string },
+          example: rescatistas-unidos,
+        }
+    put:
+      tags: [Recursos]
+      summary: Alta/actualización del stock de una ONG — Pendiente (Pista B)
+      description: 'Rol: integracion.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/StockItem' }
+      responses:
+        '200':
+          description: Stock actualizado
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecursoOng' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    get:
+      tags: [Recursos]
+      summary: Stock de una ONG (total, comprometido, disponible) — Pendiente (Pista B)
+      description: 'Rol: integracion, o la propia ONG.'
+      responses:
+        '200':
+          description: Stock de la ONG
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecursoOng' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /recursos/disponibilidad:
+    get:
+      tags: [Recursos]
+      summary: Disponibilidad global por recurso — Pendiente (Pista B)
+      description: 'Rol: cualquier usuario autenticado.'
+      responses:
+        '200':
+          description: Disponibilidad por recursoCodigo
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecursoOng' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /validaciones:
+    post:
+      tags: [Validación y compromiso]
+      summary: Evalúa ofertas por niveles de competencia — Pendiente (Pista B)
+      description: |
+        Rol: integracion. Lee el stock con `SELECT ... FOR UPDATE` (ordenado por
+        id) dentro de una transacción; no reserva. Nunca rechaza en forma
+        binaria: toda oferta recibe un perfil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ValidacionRequest' }
+      responses:
+        '200':
+          description: Perfil de cada oferta y resumen de cobertura
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ValidacionResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /compromisos:
+    post:
+      tags: [Validación y compromiso]
+      summary: Reserva transaccional de las ofertas adjudicadas — Pendiente (Pista B)
+      description: |
+        Rol: integracion. Todo o nada; idempotente por (emergenciaId, ofertaId).
+        Reparte automáticamente entre las ONGs de la oferta (principal primero).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CompromisoRequest' }
+      responses:
+        '201':
+          description: Recursos comprometidos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CompromisoResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /emergencias/{emergenciaId}/finalizacion:
+    parameters:
+      - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Cierre]
+      summary: Informa las ONGs que terminaron su actividad — Pendiente (Pista B)
+      description: 'Rol: integracion.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ongRefs]
+              properties:
+                ongRefs:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200': { description: Finalización registrada }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /emergencias/{emergenciaId}/cierre:
+    parameters:
+      - { name: emergenciaId, in: path, required: true, schema: { type: string, format: uuid } }
+    post:
+      tags: [Cierre]
+      summary: Cierra el proyecto y libera todo lo comprometido — Pendiente (Pista B)
+      description: 'Rol: integracion.'
+      responses:
+        '200': { description: Recursos liberados }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
