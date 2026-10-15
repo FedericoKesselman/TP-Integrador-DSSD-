@@ -21,10 +21,12 @@ const app = express();
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
-// Solo HTTPS en producción (en local se usa http://localhost).
+// Solo HTTPS en producción (en local se usa http://localhost). /health queda
+// afuera: el chequeo de salud de Render puede llegar por HTTP plano adentro
+// de su red y, si se rechazara, marcaría el servicio como caído.
 if (config.isProduction) {
   app.use((req, res, next) => {
-    if (req.secure) return next();
+    if (req.secure || req.path === '/health') return next();
     return res.status(403).json({ message: 'El Sistema Nacional solo acepta HTTPS.' });
   });
 }
