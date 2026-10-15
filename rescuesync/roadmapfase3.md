@@ -225,7 +225,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 | ID | Tarea | Resp. |
 |---|---|---|
-| [ ] E3-01 | Copiar las secciones 4 y 5 a `docs/api-contracts-sistema-nacional.md` y `docs/api-contracts.md` (fuente única) | |
+| [x] E3-01 | Copiar las secciones 4 y 5 a `docs/api-contracts-sistema-nacional.md` y `docs/api-contracts.md` (fuente única) | MiloEspi |
 | [x] E3-02 a E3-07, E3-09 | Decisiones de la sección 2 | — |
 | [ ] E3-08 | Crear cuentas de Neon y Render (se hace en la Fase 6; no bloquea el desarrollo local) | |
 | [ ] E3-09b | Validar la regla de reformular/reabrir de la sección 2 (la única decisión que el equipo todavía no vio) | |
@@ -235,14 +235,14 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
-| [ ] E3-10 | Scaffolding en `rescuesync/sistema-nacional/`: Express (ESM), `pg`, `node-pg-migrate`, `jsonwebtoken`, `bcryptjs`, `helmet`, `cors`; ESLint/Prettier iguales a `web-app` | 3 | |
-| [ ] E3-11 | Conexión a Postgres con SSL (Neon exige `sslmode=require`) y config por `.env` / `.env.example` | 1 | |
-| [ ] E3-12 | Migración inicial: `api_clients` (usuarios, hash bcrypt, rol, `ong_ref`), `ongs`, `recursos_catalogo` (seed con el catálogo del cliente), `ong_recursos` (`cantidad_total`, `cantidad_comprometida`, `CHECK`), `compromisos`, `compromiso_items` | 3 | |
-| [ ] E3-13 | `POST /auth/login` + middlewares `requireAuth` / `requireRole`; seed del cliente `rescuesync-integracion` (clave por variable de entorno) | 3 | |
-| [ ] E3-14 | `GET /health`; errores uniformes `{ "message" }`; códigos HTTP correctos | 1 | |
-| [ ] E3-15 | `Dockerfile` de producción (`npm ci --omit=dev`, `CMD node src/index.js`) + `docker-compose.yml` local con Postgres | 2 | |
-| [ ] E3-16 | Esqueleto de `openapi.yaml` y Swagger UI en `/docs` con esquema Bearer | 2 | |
-| [ ] E3-17 | Endurecimiento básico: solo HTTPS en producción, `helmet`, límite de tamaño del body, rate limit en `/auth/login`, SQL siempre parametrizado, `JWT_SECRET` largo solo por variable de entorno | 2 | |
+| [x] E3-10 | Scaffolding en `rescuesync/sistema-nacional/`: Express (ESM), `pg`, `node-pg-migrate`, `jsonwebtoken`, `bcryptjs`, `helmet`, `cors`; ESLint/Prettier iguales a `web-app` | 3 | MiloEspi |
+| [x] E3-11 | Conexión a Postgres con SSL (Neon exige `sslmode=require`) y config por `.env` / `.env.example` | 1 | MiloEspi |
+| [x] E3-12 | Migración inicial: `api_clients` (usuarios, hash bcrypt, rol, `ong_ref`), `ongs`, `recursos_catalogo` (seed con el catálogo del cliente), `ong_recursos` (`cantidad_total`, `cantidad_comprometida`, `CHECK`), `compromisos`, `compromiso_items` | 3 | MiloEspi |
+| [x] E3-13 | `POST /auth/login` + middlewares `requireAuth` / `requireRole`; seed del cliente `rescuesync-integracion` (clave por variable de entorno) | 3 | MiloEspi |
+| [x] E3-14 | `GET /health`; errores uniformes `{ "message" }`; códigos HTTP correctos | 1 | MiloEspi |
+| [x] E3-15 | `Dockerfile` de producción (`npm ci --omit=dev`, `CMD node src/index.js`) + `docker-compose.yml` local con Postgres | 2 | MiloEspi |
+| [x] E3-16 | Esqueleto de `openapi.yaml` y Swagger UI en `/docs` con esquema Bearer | 2 | MiloEspi |
+| [x] E3-17 | Endurecimiento básico: solo HTTPS en producción, `helmet`, límite de tamaño del body, rate limit en `/auth/login`, SQL siempre parametrizado, `JWT_SECRET` largo solo por variable de entorno | 2 | MiloEspi |
 
 ### Fase 2 — Pista B · Sistema Nacional: dominio (depende de E3-12 y E3-13)
 
