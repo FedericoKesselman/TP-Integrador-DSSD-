@@ -1,0 +1,45 @@
+# Entorno local del Sistema Nacional: la API + su propio Postgres.
+# Es independiente del docker-compose.yml de web-app/ (otra base, otros
+# puertos) para que se parezca a producción, donde el SN vive en Render y su
+# base en Neon.
+services:
+  api:
+    build: .
+    env_file:
+      - ./.env
+    environment:
+      # Adentro de la red de Compose, Postgres se resuelve por el nombre del
+      # servicio y escucha en 5432 (el 5433 es solo el puerto publicado al host).
+      DATABASE_URL: postgresql://${SN_DB_USER:-sn}:${SN_DB_PASSWORD:-changeme}@postgres:5432/${SN_DB_NAME:-sistema_nacional}
+      NODE_ENV: development
+    # Mismo arranque que producción, pero con --watch para recargar al editar.
+    command: sh -c "npx node-pg-migrate up && node scripts/seed.js && node --watch src/index.js"
+    ports:
+      - '5000:5000'
+    volumes:
+      - ./src:/app/src
+      - ./migrations:/app/migrations
+      - ./scripts:/app/scripts
+      - ./openapi.yaml:/app/openapi.yaml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${SN_DB_NAME:-sistema_nacional}
+      POSTGRES_USER: ${SN_DB_USER:-sn}
+      POSTGRES_PASSWORD: ${SN_DB_PASSWORD:-changeme}
+    ports:
+      - '5433:5432'
+    volumes:
+      - sn_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${SN_DB_USER:-sn} -d ${SN_DB_NAME:-sistema_nacional}']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  sn_postgres_data:
