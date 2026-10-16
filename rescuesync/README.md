@@ -35,7 +35,24 @@ npm install
 npm run migrate:up
 ```
 
-**2. Cliente (Vite, en otra terminal)**
+**2. Bonita Studio (antes de usar login o crear emergencias)**
+
+Bonita vive en otro repositorio, pero debe estar levantado junto con el
+backend porque el server valida los usuarios e inicia los casos del proceso.
+Cada integrante debe tener un `BONITA_NOTIFICATION_TOKEN` local en
+`web-app/server/.env`. Con PostgreSQL y el backend ya levantados, cerrar
+Bonita Studio y su runtime e iniciar una vez desde la raíz del repositorio:
+
+```bash
+sh rescuesync/bonita/scripts/start-studio.sh
+```
+
+El script configura el token y debe usarse para iniciar Bonita. En Bonita,
+desplegar la organización RescueSync y el proceso activo antes de crear una
+emergencia. Si se modifica un conector, incrementar la versión del proceso y
+redesplegarlo; los casos ya iniciados conservan la versión anterior.
+
+**3. Cliente (Vite, en otra terminal)**
 
 ```bash
 cd rescuesync/web-app/client
@@ -126,6 +143,9 @@ docker compose up --build -V
 ```
 
 Si cambió algún `.env.example`, copiar a tu `.env` las variables nuevas.
+
+Si cambió el proceso o un conector de Bonita, actualizar el repositorio de
+Bonita, desplegar la nueva versión y crear casos nuevos para probarla.
 
 ## Credenciales
 

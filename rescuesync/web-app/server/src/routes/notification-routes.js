@@ -56,8 +56,14 @@ router.post('/convocatoria', async (req, res) => {
 router.get('/', requireSession, requireRole('representante_ong'), async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT n.id, n.emergency_id AS "emergencyId", n.created_at AS "createdAt"
-       FROM notifications n JOIN ongs o ON o.id = n.ong_id
+      `SELECT n.id, n.emergency_id AS "emergencyId", e.description AS "emergencyDescription",
+              e.type AS "emergencyType", e.severity AS "emergencySeverity",
+              e.province AS "emergencyProvince", e.municipality AS "emergencyMunicipality",
+              e.status AS "emergencyStatus",
+              n.created_at AS "createdAt"
+       FROM notifications n
+       JOIN ongs o ON o.id = n.ong_id
+       JOIN emergencies e ON e.id = n.emergency_id
        WHERE o.bonita_org_ref = $1 ORDER BY n.created_at DESC`,
       [req.session.ongRef],
     );

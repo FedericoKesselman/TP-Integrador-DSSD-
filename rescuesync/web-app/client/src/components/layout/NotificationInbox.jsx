@@ -3,6 +3,20 @@ import { Link } from 'react-router-dom';
 
 import { apiRequest } from '../../services/api-client.js';
 
+const labels = {
+  incendio: 'Incendio',
+  inundacion: 'Inundación',
+  terremoto: 'Terremoto',
+  otro: 'Otro',
+  baja: 'baja',
+  media: 'media',
+  alta: 'alta',
+  critica: 'crítica',
+  registrada: 'registrada',
+  convocatoria_abierta: 'convocatoria abierta',
+  convocatoria_cerrada: 'convocatoria cerrada',
+};
+
 function NotificationInbox() {
   const [notifications, setNotifications] = useState([]);
   const [error, setError] = useState('');
@@ -44,8 +58,13 @@ function NotificationInbox() {
             to={`/emergencias/${notification.emergencyId}/oferta`}
             className="block border-b border-line p-2 text-sm hover:bg-paper-sunken"
           >
-            Nueva convocatoria: {notification.emergencyId.slice(0, 8).toUpperCase()}
+            {labels[notification.emergencyType] || 'Emergencia'}{' '}
+            {notification.emergencySeverity && `· gravedad ${labels[notification.emergencySeverity] || notification.emergencySeverity}`}
+            {notification.emergencyDescription && ` — ${notification.emergencyDescription}`}
             <span className="block text-xs text-ink-muted">
+              {notification.emergencyMunicipality}, {notification.emergencyProvince} ·{' '}
+              Estado: {labels[notification.emergencyStatus] || notification.emergencyStatus} ·{' '}
+              Caso: {notification.emergencyId.slice(0, 8).toUpperCase()} ·{' '}
               {new Date(notification.createdAt).toLocaleString('es-AR')}
             </span>
           </Link>
