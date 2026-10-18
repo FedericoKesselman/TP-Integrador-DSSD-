@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import config from './config.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import authRoutes from './routes/auth-routes.js';
+import compromisoRoutes from './routes/compromiso-routes.js';
 import docsRoutes from './routes/docs-routes.js';
 import emergenciaRoutes from './routes/emergencia-routes.js';
 import healthRoutes from './routes/health-routes.js';
@@ -44,7 +45,8 @@ app.use(docsRoutes);
 app.use('/ongs', ongRoutes);
 app.use('/recursos', recursosRoutes);
 app.use('/emergencias', emergenciaRoutes);
-// Pista B: /validaciones y /compromisos se montan acá.
+app.use('/compromisos', compromisoRoutes);
+// Pista B: /validaciones se monta acá.
 
 app.use(notFoundHandler);
 app.use(errorHandler);
