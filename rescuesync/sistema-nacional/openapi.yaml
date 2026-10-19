@@ -14,9 +14,7 @@ info:
     **Errores:** siempre `{ "message": "..." }` con el código HTTP correcto
     (400, 401, 403, 404, 409).
 
-    Contrato completo: `docs/api-contracts-sistema-nacional.md`. Los
-    endpoints marcados *Pendiente (Pista B)* están acordados pero todavía no
-    implementados.
+    Contrato completo: `docs/api-contracts-sistema-nacional.md`.
   license:
     name: Uso académico — TP integrador DSSD 2026
   contact:
@@ -34,7 +32,7 @@ tags:
   - name: Recursos
     description: Stock por ONG y disponibilidad global.
   - name: Validación y compromiso
-    description: Validación por niveles de competencia y compromiso transaccional con locking (Pista B).
+    description: Validación por niveles de competencia y compromiso transaccional con locking.
   - name: Cierre
     description: Finalización por ONG, cierre del proyecto y liberación de recursos.
 components:
@@ -565,11 +563,39 @@ paths:
   /validaciones:
     post:
       tags: [Validación y compromiso]
-      summary: Evalúa ofertas por niveles de competencia — Pendiente (Pista B)
+      summary: Evalúa ofertas por niveles de competencia
       description: |
-        Rol: integracion. Lee el stock con `SELECT ... FOR UPDATE` (ordenado por
-        id) dentro de una transacción; no reserva. Nunca rechaza en forma
+        Rol: integracion. Lee el stock de las ONGs de las ofertas con
+        `SELECT ... FOR UPDATE` (ordenado por id) dentro de una transacción; no
+        reserva. Si hay una reserva o un cierre en curso sobre ese stock, espera
+        a que termine y lee el valor ya actualizado. Nunca rechaza en forma
         binaria: toda oferta recibe un perfil.
+
+        **Cómo se calcula el perfil de cada oferta**
+
+        - Por ítem: `cantidadHabilitada = min(cantidadOfrecida, disponible sumado
+          de las ONGs de la oferta)`. Disponible = total − comprometido, solo de
+          ONGs habilitadas.
+        - Cobertura de la oferta = promedio de la cobertura de cada ítem
+          (habilitado / ofrecido).
+        - `nivelHabilitacion`: `PLENO` (100 %), `PARCIAL` (≥ 50 %), `APOYO`
+          (> 0 %) o `SIN_CAPACIDAD` (0 %). `rolSugerido` es `principal` para
+          PLENO y PARCIAL, y `apoyo` para el resto.
+        - `nivelRiesgoPermitido`: el menor entre el nivel operativo de las ONGs
+          de la oferta (1 = baja, 2 = media, 3 = alta, 4 = critica) y un tope por
+          cobertura (PLENO → critica, PARCIAL → alta, APOYO → media,
+          SIN_CAPACIDAD → baja).
+        - Una ONG inexistente o no habilitada no cuenta y se avisa en
+          `observaciones`; no rechaza el pedido.
+        - `resumen.cobertura[].cubierta` suma lo habilitado de todas las ofertas
+          para ese lote, con tope en `solicitada`. Sin ofertas, `resultados` es
+          `[]` y `todosLosLotesCubiertos` es `false`.
+
+        La validación no reserva: dos ofertas de la misma ONG ven el mismo
+        stock. Lo controla `POST /compromisos`, que responde 409 si falta.
+
+        Responde 400 con `detalle` por campo si el body no respeta el formato
+        (ej. `ofertas[0].items[0].loteId`).
       requestBody:
         required: true
         content:
@@ -610,7 +636,7 @@ paths:
                         cantidadHabilitada: 3
                         cantidadOfrecida: 3
                     observaciones:
-                      - Cubre 3 de 5 paramédicos solicitados.
+                      - 'Cobertura habilitada: 100 %.'
                 resumen:
                   todosLosLotesCubiertos: false
                   cobertura:

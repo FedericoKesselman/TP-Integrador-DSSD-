@@ -203,7 +203,7 @@ publicación de convocatoria (completa tareas en Bonita), ofertas con consorcios
 y historial, esquema de BD con migraciones, docker-compose.
 
 **Falta o hay que corregir:**
-- ~~`sistema-nacional/` está vacío.~~ **Resuelto (19/10):** la Pista A está implementada (ver *Avance*); falta `/validaciones` (E3-21).
+- ~~`sistema-nacional/` está vacío.~~ **Resuelto (19/10):** la Pista A está implementada (ver *Avance*); `/validaciones` (E3-21) también está implementada.
 - No existe el endpoint `consolidado` (aunque está documentado) y `/api/emergencies` exige sesión de usuario, que Bonita no tiene.
 - Nada pasa la emergencia a `convocatoria_cerrada`; el `CHECK` de estados solo tiene 3 valores.
 - `lotes.resource_type` guarda la etiqueta ("Paramédicos"), no el id estable.
@@ -225,8 +225,8 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 **Estado real por pista:**
 - **A:** implementada (ver avance al 15/10 más abajo).
-- **B:** hecho E3-22 (compromiso, FedericoK) con ajustes pendientes **sin responsable**; E3-21 (`/validaciones`, todavía no está montada en `app.js`) la toma Joaquin; E3-24 hecha (Federico, `test/compromisos.test.js`); E3-25 parcial: faltan los casos funcionales de compromiso, sin responsable.
-- **Reparto vigente (19/10):** Joaquin → E3-21. Federico → E3-24 (hecha; no toma nada más salvo que se acuerde). Sin dueño: ajustes de E3-22, E3-25, E3-82 a E3-86 y Fase 7. A nombre de MiloEspi: E3-26, E3-80, E3-81.
+- **B:** hecho E3-22 (compromiso, FedericoK) con ajustes pendientes **sin responsable**; E3-21 (`/validaciones`) hecha (Joaquin); E3-24 hecha (Federico, `test/compromisos.test.js`); E3-25 parcial: faltan los casos funcionales de compromiso, sin responsable.
+- **Reparto vigente (19/10):** Joaquin → E3-21 (hecha). Federico → E3-24 (hecha; no toma nada más salvo que se acuerde). Sin dueño: ajustes de E3-22, E3-25, E3-82 a E3-86 y Fase 7. A nombre de MiloEspi: E3-26, E3-80, E3-81.
 - **Alcance de la entrega (19/10):** solo la API del Sistema Nacional funcionando al 100 %; la integración con Bonita y la web-app (Pistas C, D y E) queda fuera de alcance.
 - **C, D, E:** sin arrancar y **sin responsables** (E3-0R sigue abierta). Es el principal riesgo del cronograma.
 
@@ -293,11 +293,11 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
 | [x] E3-20 | Onboarding y catálogo: `POST /ongs` (ONG + usuario), `GET /ongs`, `PUT/GET /ongs/:ref/recursos`, `GET /recursos/disponibilidad` | 5 | MiloEspi |
-| [ ] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada | 6 | Joaquin |
+| [x] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada. *Precisiones agregadas al contrato; tests unitarios y de integración (incluye el de locking)* | 6 | Joaquin |
 | [x] E3-22 | Compromiso en lote (todo o nada): reparto automático por ONG, `409` con detalle si falta stock, idempotencia por `(emergenciaId, ofertaId)`. *Con ajustes pendientes: ver Actualización al 19/10* | 6 | FedericoK |
 | [x] E3-23 | Finalización por ONG y cierre del proyecto con liberación (`cantidad_comprometida -=`) | 4 | MiloEspi |
 | [x] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking). *Cubre un solo caso (1 ONG, 1 recurso); no cubre consorcios ni el orden de locks entre varias ONGs* | 3 | FedericoK |
-| [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre). *Cierre ya tiene y compromiso tiene el de concurrencia; validación va con E3-21 (Joaquin); faltan los casos funcionales de compromiso (consorcio, idempotencia, 409, 400), sin responsable* | 4 | |
+| [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre). *Cierre ya tiene y compromiso tiene el de concurrencia; validación ya tiene (E3-21, Joaquin); faltan los casos funcionales de compromiso (consorcio, idempotencia, 409, 400), sin responsable* | 4 | |
 | [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega. *Casi hecha; falta re-exportar con la URL de Render y con `/validaciones`* | 3 | MiloEspi |
 
 ### Fase 3 — Pista C · Bonita (guías paso a paso; cada cambio se carga en Studio)
@@ -398,7 +398,7 @@ recortar, empezar por E3-58 y E3-84.
 - [ ] SN desplegado en Render con BD en Neon, accesible por HTTPS.
 - [ ] Login con JWT; el resto de los endpoints responden `401` sin token.
 - [ ] Onboarding de ONGs (con su usuario), consulta de ONGs y de disponibilidad global.
-- [ ] La validación devuelve perfiles (capacidades y riesgo), nunca un rechazo binario.
+- [x] La validación devuelve perfiles (capacidades y riesgo), nunca un rechazo binario.
 - [ ] Compromiso y validación con locking; la prueba de concurrencia no sobre-asigna.
 - [ ] Finalización, cierre y liberación de recursos funcionando.
 - [ ] Swagger público y completo; `Dockerfile` en el repo.
