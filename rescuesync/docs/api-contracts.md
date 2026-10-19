@@ -498,3 +498,22 @@ Mientras el endpoint no exista, el cliente corre con `VITE_USE_MOCK_API=true`
 (valor por defecto) y guarda las emergencias en `localStorage`
 (`rescuesync:emergencies`). Para usar el backend real: crear `client/.env` con
 `VITE_USE_MOCK_API=false`. Vite redirige `/api` a `http://localhost:4000`.
+
+## Notificaciones persistentes de convocatoria
+
+`POST /api/notifications/convocatoria` es una llamada técnica de Bonita.
+Requiere `Authorization: Bearer <BONITA_NOTIFICATION_TOKEN>` y JSON
+`{"emergenciaId":"UUID"}`. La emergencia debe estar en
+`convocatoria_abierta`. Inserta un aviso por ONG de la red en una
+transacción; la clave única `(emergency_id, ong_id)` evita duplicados.
+Respuesta `200`: `{ "emergenciaId": "UUID", "created": 2 }` (cantidad
+insertada, cero en un reintento sin nuevas ONG). Errores: `400`, `401`,
+`404`, `409`, `500` y `503` si falta configurar el secreto.
+
+`GET /api/notifications` requiere sesión de Bonita con rol
+`representante_ong`. Devuelve los avisos de la ONG identificada por el
+grupo de la sesión: `[{id, emergencyId, createdAt}]`, más recientes primero.
+No permite consultar avisos de otra ONG mediante parámetros del cliente.
+
+Ver `bonita/README.md` para configuración y reintentos. El correo y las
+notificaciones de adjudicación quedan fuera de este contrato.

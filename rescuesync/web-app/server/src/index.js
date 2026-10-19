@@ -6,6 +6,7 @@ import session from 'express-session';
 import pool from './db.js';
 import authRoutes from './routes/auth-routes.js';
 import emergencyRoutes from './routes/emergency-routes.js';
+import notificationRoutes from './routes/notification-routes.js';
 import ofertaRoutes from './routes/oferta-routes.js';
 
 const app = express();
@@ -18,6 +19,7 @@ app.use(session({ secret: process.env.SESSION_SECRET, resave: false, saveUniniti
 app.use('/api/auth', authRoutes); // "Toda petición que empiece con /api/auth, mandala a este router".
 app.use('/api/emergencies', emergencyRoutes);
 app.use('/api/ofertas', ofertaRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 app.listen(port, () => {
   console.log(`RescueSync server listening on port ${port}`);

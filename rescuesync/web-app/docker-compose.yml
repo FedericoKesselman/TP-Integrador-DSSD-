@@ -22,6 +22,9 @@ services:
       - ./shared:/shared:ro
     environment:
       BONITA_API_URL: http://host.docker.internal:8080/bonita
+      BONITA_PROCESS_NAME: ${BONITA_PROCESS_NAME:-Gestionar Emergencia}
+      BONITA_USERNAME: ${BONITA_USERNAME:-OperadorM}
+      BONITA_PASSWORD: ${BONITA_PASSWORD:-changeme}
       # Dentro de la red de Docker Compose, Postgres se resuelve por el
       # nombre del servicio ("postgres"), no por "localhost" (eso es lo
       # que queda en server/.env, para cuando se corre algo fuera de

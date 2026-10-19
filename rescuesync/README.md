@@ -19,9 +19,22 @@ del proyecto.
 ```bash
 cd rescuesync/web-app/server
 cp .env.example .env
+openssl rand -hex 32
 cd ..
 docker compose up --build
 ```
+
+Si el entorno ya fue configurado y solo se necesita iniciar los servicios:
+
+```bash
+cd rescuesync/web-app
+docker compose up -d postgres server
+```
+
+Copiar el valor que imprime `openssl rand -hex 32` en
+`server/.env` después de `BONITA_NOTIFICATION_TOKEN=`. La copia de
+`.env.example` se hace solo la primera vez: no volver a ejecutarla después de
+completar el `.env`, porque sobrescribe el token local.
 
 Confirmar en los logs: `Postgres connection established` y
 `RescueSync server listening on port 4000`.
@@ -35,7 +48,28 @@ npm install
 npm run migrate:up
 ```
 
-**2. Cliente (Vite, en otra terminal)**
+**2. Bonita Studio (antes de usar login o crear emergencias)**
+
+Bonita vive en otro repositorio, pero debe estar levantado junto con el
+backend porque el server valida los usuarios e inicia los casos del proceso.
+Cada integrante debe tener un `BONITA_NOTIFICATION_TOKEN` local en
+`web-app/server/.env` (también se conserva en
+`~/.rescuesync/bonita-notification-token`). Con PostgreSQL y el backend ya
+levantados, guardar el trabajo, cerrar Bonita Studio y su runtime e iniciar
+siempre mediante el script desde la raíz del repositorio:
+
+```bash
+sh rescuesync/bonita/scripts/start-studio.sh
+```
+
+El script configura el token del backend en el runtime de Bonita. No abrir
+Bonita directamente desde Finder, porque el runtime podría arrancar sin las
+variables necesarias. En Bonita, desplegar la organización RescueSync y el
+proceso activo antes de crear una emergencia. Si se modifica el `.proc` o un
+conector, incrementar la versión y redesplegar el proceso; los casos ya
+iniciados conservan la versión anterior.
+
+**3. Cliente (Vite, en otra terminal)**
 
 ```bash
 cd rescuesync/web-app/client
@@ -96,8 +130,8 @@ instancia del proceso en Bonita y guarda el `bonitaCaseId`. El id del
 proceso **no se configura**: el server lo busca solo por nombre entre los
 procesos desplegados y activos (`BONITA_PROCESS_ID` ya no existe).
 
-- `BONITA_PROCESS_NAME` (en `web-app/server/.env`, opcional): nombre del
-  proceso. Default `Gestionar Emergencia`.
+- `BONITA_PROCESS_NAME` (en `web-app/server/.env`): nombre del proceso.
+  Usar `GestionarEmergencia`, que es el nombre del proceso desplegado.
 - Después de redesplegar en Bonita Studio **no hay que tocar ningún `.env`**.
 - El proceso tiene que estar **desplegado y activo** en Bonita. Si no lo
   está, o Bonita no responde, la emergencia se guarda igual pero el caso no
@@ -126,6 +160,12 @@ docker compose up --build -V
 ```
 
 Si cambió algún `.env.example`, copiar a tu `.env` las variables nuevas.
+
+Si cambió el proceso, el `.proc` o un conector de Bonita, cerrar Studio,
+reiniciarlo con `start-studio.sh` para sincronizar el token, incrementar la
+versión y redesplegarlo. Crear casos nuevos para probarlo: los existentes
+conservan la versión anterior. No usar versiones anteriores para validar
+cambios nuevos.
 
 ## Credenciales
 
