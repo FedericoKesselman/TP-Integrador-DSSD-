@@ -273,7 +273,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 | [ ] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada | 6 | |
 | [x] E3-22 | Compromiso en lote (todo o nada): reparto automático por ONG, `409` con detalle si falta stock, idempotencia por `(emergenciaId, ofertaId)` | 6 | FedericoK |
 | [x] E3-23 | Finalización por ONG y cierre del proyecto con liberación (`cantidad_comprometida -=`) | 4 | MiloEspi |
-| [ ] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking) | 3 | |
+| [x] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking) | 3 | FedericoK |
 | [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre) | 4 | |
 | [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega | 3 | MiloEspi |
 
