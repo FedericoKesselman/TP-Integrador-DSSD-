@@ -225,6 +225,13 @@ components:
             properties:
               compromisoId: { type: string, format: uuid }
               ofertaId: { type: string, format: uuid }
+              estado:
+                type: string
+                enum: [activo, liberado]
+                description: '`liberado` si el proyecto ya se cerró (el stock volvió a las ONGs).'
+              yaExistia:
+                type: boolean
+                description: '`true` si la oferta ya estaba comprometida (reintento): no se reservó de nuevo.'
               reparto:
                 type: array
                 items:
@@ -656,11 +663,21 @@ paths:
         una transacción, bloqueando cada fila de stock con `SELECT ... FOR UPDATE`.
 
         - Reparte entre las ONGs de la oferta: principal primero, cada una hasta
-          su disponible.
-        - Todo o nada: si algún recurso no alcanza responde 409 con
-          `detalle` (`ofertaId`, `recursoCodigo`, `faltante`) y no reserva nada.
-        - Idempotente por (emergenciaId, ofertaId): si la oferta ya estaba
-          comprometida no reserva de nuevo y la devuelve con `yaExistia: true`.
+          su disponible. `reparto` trae una fila por ONG y recurso.
+        - El stock se comparte entre las ofertas del pedido: cada oferta ve lo que
+          dejó la anterior.
+        - Todo o nada: si algún recurso no alcanza responde 409 y no reserva nada
+          (tampoco las ofertas anteriores del pedido). `detalle` trae `ofertaId`,
+          `recursoCodigo`, `solicitado`, `disponible`, `faltante` y `ongs`
+          (`[{ ongRef, disponible }]`, lo que tenía cada ONG de la oferta).
+        - Idempotente por (emergenciaId, ofertaId), también ante reintentos en
+          paralelo: si la oferta ya estaba comprometida no reserva de nuevo y la
+          devuelve con `yaExistia: true`, su reparto original y su `estado`
+          (`liberado` si el proyecto ya se cerró). El cuerpo del reintento no se
+          compara: manda el compromiso original.
+        - Orden de locks: primero `compromisos`, después `ong_recursos` por id.
+        - Responde 400 con `detalle` por campo si el body no respeta el formato
+          (ej. `ofertas[0].items[0].cantidad`).
       requestBody:
         required: true
         content:
