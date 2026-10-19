@@ -203,7 +203,7 @@ publicación de convocatoria (completa tareas en Bonita), ofertas con consorcios
 y historial, esquema de BD con migraciones, docker-compose.
 
 **Falta o hay que corregir:**
-- `sistema-nacional/` está vacío.
+- ~~`sistema-nacional/` está vacío.~~ **Resuelto (19/10):** la Pista A está implementada (ver *Avance*); `/validaciones` (E3-21) también está implementada.
 - No existe el endpoint `consolidado` (aunque está documentado) y `/api/emergencies` exige sesión de usuario, que Bonita no tiene.
 - Nada pasa la emergencia a `convocatoria_cerrada`; el `CHECK` de estados solo tiene 3 valores.
 - `lotes.resource_type` guarda la etiqueta ("Paramédicos"), no el id estable.
@@ -220,6 +220,29 @@ y historial, esquema de BD con migraciones, docker-compose.
 ## 7. Tareas
 
 Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a completar al repartir.
+
+### Actualización al 19/10 (revisión del roadmap contra el código)
+
+**Estado real por pista:**
+- **A:** implementada (ver avance al 15/10 más abajo).
+- **B:** hecho E3-22 (compromiso, FedericoK) con ajustes pendientes **sin responsable**; E3-21 (`/validaciones`) hecha (Joaquin); E3-24 hecha (Federico, `test/compromisos.test.js`); E3-25 parcial: faltan los casos funcionales de compromiso, sin responsable.
+- **Reparto vigente (19/10):** Joaquin → E3-21 (hecha). Federico → E3-24 (hecha; no toma nada más salvo que se acuerde). Sin dueño: ajustes de E3-22, E3-25, E3-82 a E3-86 y Fase 7. A nombre de MiloEspi: E3-26, E3-80, E3-81.
+- **Alcance de la entrega (19/10):** solo la API del Sistema Nacional funcionando al 100 %; la integración con Bonita y la web-app (Pistas C, D y E) queda fuera de alcance.
+- **C, D, E:** sin arrancar y **sin responsables** (E3-0R sigue abierta). Es el principal riesgo del cronograma.
+
+**Ajustes pendientes en E3-22 — sin responsable** (E3-24 ya está hecha: acordar con Federico quién los toma; `sistema-nacional/src/compromisos/comprometer-recursos.js`; detectados al contrastar con el contrato de la sección 4). Nota: el contrato deja el control de stock compartido entre ofertas en el `409` de `/compromisos`; `/validaciones` no descuenta stock entre ofertas del mismo pedido:
+- [ ] Bloquear las filas de `ong_recursos` **ordenadas por `id`** (hoy bloquea una por una según el orden de las ONGs de la oferta → riesgo de deadlock entre compromisos concurrentes).
+- [ ] Idempotencia: si la oferta ya existía, devolver también el `reparto` guardado (hoy devuelve `yaExistia: true` sin `reparto`).
+- [ ] `409`: incluir **de qué ONG** falta el stock (hoy informa `ofertaId`, `recursoCodigo` y `faltante`).
+- [ ] Validar el body (`ongs` no vacío, `cantidad` entero positivo): hoy un body mal formado produce `500` en lugar de `400`.
+- [ ] Completar el comentario de cabecera del archivo (quedó cortado).
+- [ ] Más tests de compromiso: ya hay uno de concurrencia (`test/compromisos.test.js`, 1 ONG y 1 recurso, E3-24); faltan consorcio (reparto entre ONGs), idempotencia, `409` con detalle y `400` por body inválido (E3-25).
+
+**Estado de Neon/Render:** E3-08 y E3-80 siguen abiertas porque Render no está resuelto: el proyecto Neon `rescuesync-sn` ya existe y la conexión directa fue probada. **E3-81 sigue bloqueada** por el repo privado (decidir ya: app de Render en el repo, que Federico configure el servicio, o repo público).
+
+**Camino crítico:** Bonita (C) depende de E3-50 a E3-55 (Pista D, ~18 h); D es la pista más cargada (39 h) y no tiene dueño.
+
+**Pendiente de decisión del equipo:** E3-0R (repartir pistas) y E3-09b (regla de reformular/reabrir).
 
 ### Avance al 15/10 (Pista A — MiloEspi)
 
@@ -248,7 +271,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 |---|---|---|
 | [x] E3-01 | Copiar las secciones 4 y 5 a `docs/api-contracts-sistema-nacional.md` y `docs/api-contracts.md` (fuente única) | MiloEspi |
 | [x] E3-02 a E3-07, E3-09 | Decisiones de la sección 2 | — |
-| [ ] E3-08 | Crear cuentas de Neon y Render (se hace en la Fase 6; no bloquea el desarrollo local) | MiloEspi |
+| [ ] E3-08 | Crear cuentas de Neon y Render (se hace en la Fase 6; no bloquea el desarrollo local). *Neon creado; falta resolver Render (ver E3-81)* | MiloEspi |
 | [ ] E3-09b | Validar la regla de reformular/reabrir de la sección 2 (la única decisión que el equipo todavía no vio) | |
 | [ ] E3-0R | Repartir pistas y completar la columna "Resp." de todo este documento | |
 
@@ -270,12 +293,12 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
 | [x] E3-20 | Onboarding y catálogo: `POST /ongs` (ONG + usuario), `GET /ongs`, `PUT/GET /ongs/:ref/recursos`, `GET /recursos/disponibilidad` | 5 | MiloEspi |
-| [ ] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada | 6 | |
-| [x] E3-22 | Compromiso en lote (todo o nada): reparto automático por ONG, `409` con detalle si falta stock, idempotencia por `(emergenciaId, ofertaId)` | 6 | FedericoK |
+| [x] E3-21 | Validación: transacción con `FOR UPDATE` ordenado, algoritmo de competencia y riesgo, respuesta estructurada. *Precisiones agregadas al contrato; tests unitarios y de integración (incluye el de locking)* | 6 | Joaquin |
+| [x] E3-22 | Compromiso en lote (todo o nada): reparto automático por ONG, `409` con detalle si falta stock, idempotencia por `(emergenciaId, ofertaId)`. *Con ajustes pendientes: ver Actualización al 19/10* | 6 | FedericoK |
 | [x] E3-23 | Finalización por ONG y cierre del proyecto con liberación (`cantidad_comprometida -=`) | 4 | MiloEspi |
-| [x] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking) | 3 | FedericoK |
-| [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre) | 4 | |
-| [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega | 3 | MiloEspi |
+| [x] E3-24 | **Prueba de concurrencia**: N pedidos paralelos sobre el mismo stock → nunca sobre-asigna. Queda en el repo (es la evidencia del locking). *Cubre un solo caso (1 ONG, 1 recurso); no cubre consorcios ni el orden de locks entre varias ONGs* | 3 | FedericoK |
+| [ ] E3-25 | Tests de integración (al menos validación, compromiso y cierre). *Cierre ya tiene y compromiso tiene el de concurrencia; validación ya tiene (E3-21, Joaquin); faltan los casos funcionales de compromiso (consorcio, idempotencia, 409, 400), sin responsable* | 4 | |
+| [ ] E3-26 | OpenAPI completo con ejemplos y **exportar el documento Swagger** (`openapi.yaml` + PDF/HTML) para la entrega. *Casi hecha; falta re-exportar con la URL de Render y con `/validaciones`* | 3 | MiloEspi |
 
 ### Fase 3 — Pista C · Bonita (guías paso a paso; cada cambio se carga en Studio)
 
@@ -329,13 +352,13 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 
 | ID | Tarea | Est. | Resp. |
 |---|---|---|---|
-| [ ] E3-80 | Neon: crear la base, correr migraciones y guardar `DATABASE_URL` (usar conexión directa, no el pooler en modo transacción) | 1 | MiloEspi |
-| [ ] E3-81 | Render: Web Service Docker apuntando a `rescuesync/sistema-nacional`, variables (`DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`), healthcheck en `/health` | 2 | MiloEspi |
+| [ ] E3-80 | Neon: crear la base, correr migraciones y guardar `DATABASE_URL` (usar conexión directa, no el pooler en modo transacción). *Proyecto creado y conexión probada; las migraciones corren al arrancar en Render* | 1 | MiloEspi |
+| [ ] E3-81 | Render: Web Service Docker apuntando a `rescuesync/sistema-nacional`, variables (`DATABASE_URL`, `JWT_SECRET`, `JWT_EXPIRES_IN`, `PORT`), healthcheck en `/health`. **Bloqueada:** repo privado de la cuenta personal de Federico | 2 | MiloEspi |
 | [ ] E3-82 | Seed de producción: cliente de integración, ONGs demo (`rescatistas-unidos`, `manos-solidarias`) y su stock limitado | 1 | |
 | [ ] E3-83 | Swagger público en `/docs` probado con "Authorize" servicio por servicio | 1 | |
 | [ ] E3-84 | Backup de la base (dump fuera del repo) y nota sobre la política de 30 días | 1 | |
 | [ ] E3-85 | README del SN: cómo correrlo local y con Docker, variables, URL pública, usuario de prueba | 2 | |
-| [ ] E3-86 | Actualizar `README.md` raíz, `CLAUDE.md` (el SN deja de ser "no se codea") y `.env.example` de la web-app: **quitar** `SISTEMA_NACIONAL_JWT_SECRET` y agregar `BONITA_INTEGRATION_KEY` | 1 | |
+| [ ] E3-86 | Actualizar `README.md` raíz, `CLAUDE.md` (el SN deja de ser "no se codea") y `.env.example` de la web-app: **quitar** `SISTEMA_NACIONAL_JWT_SECRET` y agregar `BONITA_INTEGRATION_KEY` (evaluar también quitar `SISTEMA_NACIONAL_API_URL`: según la sección 3 solo Bonita habla con el SN) | 1 | |
 
 ### Fase 7 — Integración y cierre (todos)
 
@@ -375,7 +398,7 @@ recortar, empezar por E3-58 y E3-84.
 - [ ] SN desplegado en Render con BD en Neon, accesible por HTTPS.
 - [ ] Login con JWT; el resto de los endpoints responden `401` sin token.
 - [ ] Onboarding de ONGs (con su usuario), consulta de ONGs y de disponibilidad global.
-- [ ] La validación devuelve perfiles (capacidades y riesgo), nunca un rechazo binario.
+- [x] La validación devuelve perfiles (capacidades y riesgo), nunca un rechazo binario.
 - [ ] Compromiso y validación con locking; la prueba de concurrencia no sobre-asigna.
 - [ ] Finalización, cierre y liberación de recursos funcionando.
 - [ ] Swagger público y completo; `Dockerfile` en el repo.

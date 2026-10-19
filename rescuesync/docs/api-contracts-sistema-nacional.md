@@ -50,7 +50,7 @@ Origen: sección 4 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01).
 | `PUT /ongs/:ref/recursos` | integracion | Alta/actualización de stock: `[{recursoCodigo,cantidadTotal}]` | Hecho |
 | `GET /ongs/:ref/recursos` | integracion, o la propia `ong` | Total, comprometido y disponible por recurso | Hecho |
 | `GET /recursos/disponibilidad` | autenticado | Disponibilidad global por `recursoCodigo` | Hecho |
-| `POST /validaciones` | integracion | Evalúa ofertas (ver abajo). Lee con lock, no reserva | Pendiente |
+| `POST /validaciones` | integracion | Evalúa ofertas (ver abajo). Lee con lock, no reserva | Hecho |
 | `POST /compromisos` | integracion | Reserva transaccional de **todas** las ofertas adjudicadas (todo o nada); idempotente por `(emergenciaId, ofertaId)` | Pendiente |
 | `POST /emergencias/:emergenciaId/finalizacion` | integracion | `{ongRefs:[…]}`: ONGs que terminaron su actividad | Hecho |
 | `POST /emergencias/:emergenciaId/cierre` | integracion | Cierra el proyecto y libera todo lo comprometido | Hecho |
@@ -133,6 +133,28 @@ Reglas:
   por cobertura (PLENO → `critica`, PARCIAL → `alta`, APOYO → `media`).
 - Con consorcio, `habilitada = min(ofrecida, disponible sumado de las ONGs de la oferta)`.
 - Con 0 ofertas, `resultados` es `[]` y `todosLosLotesCubiertos` es `false`.
+
+Precisiones de la implementación (E3-21), para lo que el contrato no define:
+
+- Con varios ítems, la cobertura de la oferta es el **promedio** de la de cada
+  ítem: `PLENO` = todos los ítems completos; `SIN_CAPACIDAD` = ninguno.
+- `rolSugerido`: `principal` si el nivel es `PLENO` o `PARCIAL`; `apoyo` si es
+  `APOYO` o `SIN_CAPACIDAD`.
+- Nivel operativo → riesgo: 1 = `baja`, 2 = `media`, 3 = `alta`, 4 = `critica`.
+  Con consorcio se toma el **menor** nivel entre las ONGs de la oferta.
+  `SIN_CAPACIDAD` tiene tope `baja`.
+- Una ONG inexistente o no habilitada **no cuenta** y no rechaza el pedido: se
+  informa en `observaciones` (si ninguna cuenta, la oferta queda
+  `SIN_CAPACIDAD`).
+- Si el riesgo permitido es menor que la `severidad` de la emergencia, se agrega
+  una observación; no cambia el nivel.
+- `cubierta` de cada lote suma lo habilitado de todas las ofertas, con tope en
+  `solicitada`.
+- La validación **no reserva**: dos ofertas de la misma ONG ven el mismo stock.
+  Lo controla `/compromisos` con el `409`.
+- `400` con `detalle` por campo (ej. `ofertas[0].items[0].loteId`) si el body no
+  respeta el formato: UUIDs, `severidad` válida, al menos un lote, cantidades
+  enteras mayores a 0, ítems que coinciden con un lote del pedido.
 
 ### `POST /compromisos`
 
