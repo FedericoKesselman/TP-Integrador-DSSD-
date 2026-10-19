@@ -15,6 +15,10 @@ fi
 : "${RESCUESYNC_BACKEND_URL:=http://localhost:4000}"
 : "${BONITA_NOTIFICATION_TOKEN:?Exportá BONITA_NOTIFICATION_TOKEN con el mismo valor que el backend}"
 export RESCUESYNC_BACKEND_URL BONITA_NOTIFICATION_TOKEN
+# Eclipse puede regenerar su archivo .launch y descartar variables agregadas
+# allí. JAVA_TOOL_OPTIONS sí se hereda al JVM de Tomcat que inicia Bonita.
+JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -DBONITA_NOTIFICATION_TOKEN=${BONITA_NOTIFICATION_TOKEN} -DRESCUESYNC_BACKEND_URL=${RESCUESYNC_BACKEND_URL}"
+export JAVA_TOOL_OPTIONS
 
 # Eclipse inicia Tomcat por separado. Configurar su entorno explícitamente
 # evita depender de que el launcher de macOS conserve las variables de Studio.
@@ -55,6 +59,18 @@ if ($xml =~ /<mapAttribute key="\Q$map\E">/) {
     $xml =~ s{</launchConfiguration>}{    <mapAttribute key="$map">\n$entries    </mapAttribute>\n</launchConfiguration>}
         or die "Formato de configuración inesperado";
 }
+
+# Bonita/Eclipse puede regenerar el mapAttribute de variables de entorno.
+# También dejamos las variables como propiedades JVM, que el conector puede
+# leer con System.getProperty y que permanecen en la configuración local.
+my $vm_token = '-DBONITA_NOTIFICATION_TOKEN=' . $ENV{BONITA_NOTIFICATION_TOKEN};
+my $vm_backend = '-DRESCUESYNC_BACKEND_URL=' . $ENV{RESCUESYNC_BACKEND_URL};
+$xml =~ s{(<stringAttribute\s+key="org\.eclipse\.jdt\.launching\.VM_ARGUMENTS"\s+value=")([^\"]*)("/?>)}{
+    my ($prefix, $args, $suffix) = ($1, $2, $3);
+    $args =~ s/(?:^|\s)-DBONITA_NOTIFICATION_TOKEN=\S+//g;
+    $args =~ s/(?:^|\s)-DRESCUESYNC_BACKEND_URL=\S+//g;
+    $prefix . $args . ' ' . $vm_token . ' ' . $vm_backend . $suffix;
+}ex;
 chmod 0600, $path or die "No se pudieron restringir los permisos: $!";
 open my $out, '>', $path or die "No se pudo actualizar la configuración: $!";
 print {$out} $xml;

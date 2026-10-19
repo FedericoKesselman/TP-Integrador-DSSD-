@@ -16,12 +16,29 @@ Para levantar el entorno local en el orden correcto:
    docker compose up -d server
    ```
 
+   Si se modificó `docker-compose.yml` o alguna variable de entorno, recrear
+   el backend para no conservar la configuración anterior:
+
+   ```bash
+   docker compose up -d --force-recreate server
+   ```
+
    Verificar que el backend esté escuchando en `http://localhost:4000`.
    No usar `docker compose down -v`: elimina los datos de PostgreSQL.
 
 2. Verificar que `web-app/server/.env` tenga un valor para
    `BONITA_NOTIFICATION_TOKEN`. Cada integrante debe configurar su propio
-   valor local; el archivo `.env` no se versiona.
+   valor local; el archivo `.env` no se versiona. Si todavía no tiene uno,
+   generarlo con:
+
+   ```bash
+   openssl rand -hex 32
+   ```
+
+   y copiar el resultado después de `BONITA_NOTIFICATION_TOKEN=` en
+   `web-app/server/.env`. `cp .env.example .env` se ejecuta solo la primera
+   vez; no volver a copiarlo después de completar el token porque sobrescribe
+   el `.env` local.
 
 3. En Bonita Studio (2025.2), importar/clonar el proyecto desde ese repo.
 4. En el Explorador, abrir `Organizaciones → RescueSync.xml` y
@@ -31,8 +48,9 @@ Para levantar el entorno local en el orden correcto:
    ONG → `representante_ong`, Sistema Nacional → `sistema_nacional`) y, en
    *Autenticación*, un usuario de la organización RescueSync.
 6. Configurar los conectores REST según la sección siguiente y desplegar una
-   versión nueva del proceso cada vez que se modifique un conector. Los casos
-   ya iniciados conservan la versión con la que fueron creados.
+   versión nueva del proceso cada vez que se modifique el `.proc` o un
+   conector. Los casos ya iniciados conservan la versión con la que fueron
+   creados; no usar una versión anterior para probar cambios nuevos.
 7. Con Studio abierto, Bonita responde en `http://localhost:8080/bonita`.
    La app web lo usa para el login (ver `../README.md`, "Login con Bonita").
 
@@ -46,9 +64,15 @@ sh rescuesync/bonita/scripts/start-studio.sh
 ```
 
 El script toma el token del contenedor `server` o, como alternativa, de
-`web-app/server/.env`, configura el runtime local de Bonita y luego inicia
-Bonita Studio. No abrir Bonita directamente desde Finder, porque el runtime
-puede no recibir las variables necesarias.
+`web-app/server/.env`, configura el runtime local de Bonita como variable de
+entorno y propiedad JVM, y luego inicia Bonita Studio. No abrir Bonita
+directamente desde Finder, porque el runtime puede no recibir las variables
+necesarias.
+
+El token también queda guardado localmente en
+`~/.rescuesync/bonita-notification-token`. Es un secreto por instalación: no
+versionarlo ni compartirlo. Si el script detecta que Studio o Tomcat ya están
+abiertos, guardar el proceso y cerrarlos completamente antes de ejecutarlo.
 
 ## Usuarios de prueba
 
@@ -81,6 +105,20 @@ la autenticación y los grupos siguen en Bonita. El aviso pertenece a la
 ONG y lo ven sus representantes en **Avisos** del encabezado de la web.
 Se consulta al entrar y cada 30 segundos. Los avisos se conservan.
 
+### Cierre de convocatoria
+
+La tarea automática de cierre utiliza el mismo mecanismo de autenticación. El
+conector debe enviar exactamente:
+
+```http
+Authorization: Bearer ${BONITA_NOTIFICATION_TOKEN}
+```
+
+El token debe coincidir con el del backend. Cuando la tarea se ejecuta
+correctamente, el backend notifica el cierre y la convocatoria queda cerrada.
+Si el token no coincide, Bonita devuelve `401`; después de corregirlo,
+reintentar la tarea desde Administración de Bonita.
+
 ### Configuración local
 
 La integración con Bonita usa el conector REST del proceso y las variables
@@ -105,7 +143,8 @@ proceso y crear una emergencia nueva se puede probar el flujo completo.
    Para otra instalación, definir `BONITA_STUDIO_APP` y, si hace falta,
    `DOCKER_BIN`. El runtime debe haberse iniciado al menos una vez para que
    exista su configuración local.
-5. Reabrir y validar el diagrama; desplegarlo para casos nuevos.
+5. Reabrir y validar el diagrama; incrementar la versión y desplegarlo para
+   casos nuevos. No probar cambios sobre casos creados con una versión vieja.
    Editar el `.proc` no actualiza automáticamente los casos ya iniciados.
 
 Bonita corre en el host, por eso usa `localhost:4000`, el puerto publicado
