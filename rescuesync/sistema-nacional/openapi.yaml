@@ -624,10 +624,17 @@ paths:
   /compromisos:
     post:
       tags: [Validación y compromiso]
-      summary: Reserva transaccional de las ofertas adjudicadas — Pendiente (Pista B)
+      summary: Reserva transaccional de las ofertas adjudicadas
       description: |
-        Rol: integracion. Todo o nada; idempotente por (emergenciaId, ofertaId).
-        Reparte automáticamente entre las ONGs de la oferta (principal primero).
+        Rol: integracion. Reserva el stock de las ofertas adjudicadas dentro de
+        una transacción, bloqueando cada fila de stock con `SELECT ... FOR UPDATE`.
+
+        - Reparte entre las ONGs de la oferta: principal primero, cada una hasta
+          su disponible.
+        - Todo o nada: si algún recurso no alcanza responde 409 con
+          `detalle` (`ofertaId`, `recursoCodigo`, `faltante`) y no reserva nada.
+        - Idempotente por (emergenciaId, ofertaId): si la oferta ya estaba
+          comprometida no reserva de nuevo y la devuelve con `yaExistia: true`.
       requestBody:
         required: true
         content:
@@ -644,7 +651,7 @@ paths:
                     - recursoCodigo: paramedicos
                       cantidad: 3
       responses:
-        '201':
+        '200':
           description: Recursos comprometidos
           content:
             application/json:
