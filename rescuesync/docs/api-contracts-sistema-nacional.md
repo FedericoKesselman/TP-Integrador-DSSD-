@@ -51,7 +51,7 @@ Origen: sección 4 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01).
 | `GET /ongs/:ref/recursos` | integracion, o la propia `ong` | Total, comprometido y disponible por recurso | Hecho |
 | `GET /recursos/disponibilidad` | autenticado | Disponibilidad global por `recursoCodigo` | Hecho |
 | `POST /validaciones` | integracion | Evalúa ofertas (ver abajo). Lee con lock, no reserva | Hecho |
-| `POST /compromisos` | integracion | Reserva transaccional de **todas** las ofertas adjudicadas (todo o nada); idempotente por `(emergenciaId, ofertaId)` | Pendiente |
+| `POST /compromisos` | integracion | Reserva transaccional de **todas** las ofertas adjudicadas (todo o nada); idempotente por `(emergenciaId, ofertaId)` | Hecho |
 | `POST /emergencias/:emergenciaId/finalizacion` | integracion | `{ongRefs:[…]}`: ONGs que terminaron su actividad | Hecho |
 | `POST /emergencias/:emergenciaId/cierre` | integracion | Cierra el proyecto y libera todo lo comprometido | Hecho |
 
@@ -175,6 +175,25 @@ El SN reparte automáticamente la cantidad entre las ONGs de la oferta
 (principal primero, luego asociadas, hasta su disponible). Si falta stock →
 `409` con el detalle de qué recurso y de qué ONG; no se reserva nada.
 
+Precisiones de la implementación (E3-22):
+
+- Cada compromiso de la respuesta trae también `estado` (`activo` | `liberado`)
+  y `yaExistia` (`true` si la oferta ya estaba comprometida). `reparto` tiene una
+  fila por ONG y recurso, ordenada por `ongRef` y `recursoCodigo`.
+- El stock se **comparte entre las ofertas** del mismo pedido (y con las de otras
+  emergencias): cada oferta ve lo que dejó la anterior. Si una no alcanza, el
+  pedido entero responde `409` y no se reserva ninguna.
+- `detalle` del `409`: `ofertaId`, `recursoCodigo`, `solicitado`, `disponible`
+  (suma de las ONGs de la oferta), `faltante` y `ongs` (`[{ ongRef, disponible }]`
+  en el orden de reparto; una ONG inexistente figura con `disponible: 0`).
+- Idempotente por `(emergenciaId, ofertaId)` también ante reintentos en paralelo:
+  devuelve el compromiso original (con su reparto y su `estado`) sin reservar de
+  nuevo y sin comparar el cuerpo del reintento. Si ya se cerró el proyecto, lo
+  informa con `estado: "liberado"` y no vuelve a reservar.
+- `400` con `detalle` por campo (ej. `ofertas[0].items[0].cantidad`) si el body
+  no respeta el formato: UUIDs, al menos una oferta, `ongs` con `ref` y `rol`
+  (`principal` | `apoyo`), ítems con `recursoCodigo` y `cantidad` entera mayor a 0.
+
 ### Finalización y cierre (E3-23)
 
 `POST /emergencias/:emergenciaId/finalizacion` con `{ "ongRefs": ["…"] }`
@@ -220,8 +239,9 @@ cantidad_total)` como red de seguridad en la base.
 **Orden de bloqueo** (obligatorio para todo endpoint que toque stock, así
 dos transacciones nunca se esperan en cruz): primero las filas de
 `compromisos` que se van a modificar, después las de `ong_recursos`, siempre
-`ORDER BY id`. El cierre (E3-23) ya lo respeta; `/compromisos` (E3-22) tiene
-que hacer lo mismo si consulta compromisos existentes para la idempotencia.
+`ORDER BY id`. Lo respetan el cierre (E3-23), `/validaciones` (E3-21) y
+`/compromisos` (E3-22): este último inserta primero los compromisos y después
+bloquea todo el stock del pedido en un solo `SELECT ... ORDER BY id FOR UPDATE`.
 
 ## Cuentas
 
