@@ -226,7 +226,7 @@ Formato: `[ ]` pendiente · `[x]` hecha · **Est.** en horas · **Resp.** a comp
 **Estado real por pista:**
 - **A:** implementada (ver avance al 15/10 más abajo).
 - **B:** completa. E3-21 (`/validaciones`, Joaquin), E3-22 (`/compromisos`, FedericoK, con los ajustes del 19/10 de Joaquin), E3-24 (concurrencia, Federico) y E3-25 (tests de integración, Joaquin) hechas. Falta solo E3-26 (re-exportar el Swagger, MiloEspi).
-- **Reparto vigente (19/10):** Joaquin → E3-21, ajustes de E3-22 y E3-25 (hechas). Federico → E3-24 (hecha) y revisión/merge de la rama `feat/e3-22-ajustes-compromisos`. Sin dueño: E3-82 a E3-86 y la parte del SN de la Fase 7. A nombre de MiloEspi: E3-26, E3-80, E3-81.
+- **Reparto vigente (19/10):** Joaquin → E3-21, ajustes de E3-22 y E3-25 (hechas). Federico → E3-24 (hecha) y revisión/merge de la rama `feat/e3-22-ajustes-compromisos` (hecha el 20/10: 82 tests en verde, PR #13 en `main`). Sin dueño: E3-82 a E3-86 y la parte del SN de la Fase 7. A nombre de MiloEspi: E3-26, E3-80, E3-81.
 - **Alcance de la entrega (19/10):** solo la API del Sistema Nacional funcionando al 100 %; la integración con Bonita y la web-app (Pistas C, D y E) queda fuera de alcance.
 - **Estado del SN (19/10): implementado y probado en local.** 82 tests en verde (unitarios e integración contra Postgres, incluidos locking y concurrencia) y una prueba integral manual en Swagger del flujo completo (alta de ONGs, validación, compromiso, idempotencia, `409`, finalización, cierre y roles). Falta publicarlo en la nube (Fase 6) y repetir la prueba contra Render.
 - **C, D, E:** sin arrancar y **sin responsables** (E3-0R sigue abierta). Es el principal riesgo del cronograma.
