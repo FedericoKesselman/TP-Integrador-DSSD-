@@ -3,7 +3,7 @@
   "info": {
     "title": "Sistema Nacional de Gestión de Recursos y Riesgos",
     "version": "0.1.0",
-    "description": "API REST del Sistema Nacional (SN) de RescueSync. Gestiona ONGs y su stock\nde recursos, valida ofertas por niveles de competencia y compromete/libera\nrecursos con locking en PostgreSQL.\n\n**Autenticación:** `POST /auth/login` devuelve un JWT (HS256, 1 h). El\nresto de los endpoints, salvo `/health` y `/docs`, exige\n`Authorization: Bearer <token>`. Usá el botón **Authorize** con el token.\n\n**Errores:** siempre `{ \"message\": \"...\" }` con el código HTTP correcto\n(400, 401, 403, 404, 409).\n\nContrato completo: `docs/api-contracts-sistema-nacional.md`. Los\nendpoints marcados *Pendiente (Pista B)* están acordados pero todavía no\nimplementados.\n",
+    "description": "API REST del Sistema Nacional (SN) de RescueSync. Gestiona ONGs y su stock\nde recursos, valida ofertas por niveles de competencia y compromete/libera\nrecursos con locking en PostgreSQL.\n\n**Autenticación:** `POST /auth/login` devuelve un JWT (HS256, 1 h). El\nresto de los endpoints, salvo `/health` y `/docs`, exige\n`Authorization: Bearer <token>`. Usá el botón **Authorize** con el token.\n\n**Errores:** siempre `{ \"message\": \"...\" }` con el código HTTP correcto\n(400, 401, 403, 404, 409).\n\nContrato completo: `docs/api-contracts-sistema-nacional.md`.\n",
     "license": {
       "name": "Uso académico — TP integrador DSSD 2026"
     },
@@ -12,6 +12,10 @@
     }
   },
   "servers": [
+    {
+      "url": "https://tp-integrador-dssd-rescuesync-sistema.onrender.com",
+      "description": "Producción (Render)"
+    },
     {
       "url": "http://localhost:5000",
       "description": "Local (docker compose)"
@@ -36,7 +40,7 @@
     },
     {
       "name": "Validación y compromiso",
-      "description": "Validación por niveles de competencia y compromiso transaccional con locking (Pista B)."
+      "description": "Validación por niveles de competencia y compromiso transaccional con locking."
     },
     {
       "name": "Cierre",
@@ -513,6 +517,18 @@
                 "ofertaId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "estado": {
+                  "type": "string",
+                  "enum": [
+                    "activo",
+                    "liberado"
+                  ],
+                  "description": "`liberado` si el proyecto ya se cerró (el stock volvió a las ONGs)."
+                },
+                "yaExistia": {
+                  "type": "boolean",
+                  "description": "`true` si la oferta ya estaba comprometida (reintento): no se reservó de nuevo."
                 },
                 "reparto": {
                   "type": "array",
@@ -1119,8 +1135,8 @@
         "tags": [
           "Validación y compromiso"
         ],
-        "summary": "Evalúa ofertas por niveles de competencia — Pendiente (Pista B)",
-        "description": "Rol: integracion. Lee el stock con `SELECT ... FOR UPDATE` (ordenado por\nid) dentro de una transacción; no reserva. Nunca rechaza en forma\nbinaria: toda oferta recibe un perfil.\n",
+        "summary": "Evalúa ofertas por niveles de competencia",
+        "description": "Rol: integracion. Lee el stock de las ONGs de las ofertas con\n`SELECT ... FOR UPDATE` (ordenado por id) dentro de una transacción; no\nreserva. Si hay una reserva o un cierre en curso sobre ese stock, espera\na que termine y lee el valor ya actualizado. Nunca rechaza en forma\nbinaria: toda oferta recibe un perfil.\n\n**Cómo se calcula el perfil de cada oferta**\n\n- Por ítem: `cantidadHabilitada = min(cantidadOfrecida, disponible sumado\n  de las ONGs de la oferta)`. Disponible = total − comprometido, solo de\n  ONGs habilitadas.\n- Cobertura de la oferta = promedio de la cobertura de cada ítem\n  (habilitado / ofrecido).\n- `nivelHabilitacion`: `PLENO` (100 %), `PARCIAL` (≥ 50 %), `APOYO`\n  (> 0 %) o `SIN_CAPACIDAD` (0 %). `rolSugerido` es `principal` para\n  PLENO y PARCIAL, y `apoyo` para el resto.\n- `nivelRiesgoPermitido`: el menor entre el nivel operativo de las ONGs\n  de la oferta (1 = baja, 2 = media, 3 = alta, 4 = critica) y un tope por\n  cobertura (PLENO → critica, PARCIAL → alta, APOYO → media,\n  SIN_CAPACIDAD → baja).\n- Una ONG inexistente o no habilitada no cuenta y se avisa en\n  `observaciones`; no rechaza el pedido.\n- `resumen.cobertura[].cubierta` suma lo habilitado de todas las ofertas\n  para ese lote, con tope en `solicitada`. Sin ofertas, `resultados` es\n  `[]` y `todosLosLotesCubiertos` es `false`.\n\nLa validación no reserva: dos ofertas de la misma ONG ven el mismo\nstock. Lo controla `POST /compromisos`, que responde 409 si falta.\n\nResponde 400 con `detalle` por campo si el body no respeta el formato\n(ej. `ofertas[0].items[0].loteId`).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1185,7 +1201,7 @@
                         }
                       ],
                       "observaciones": [
-                        "Cubre 3 de 5 paramédicos solicitados."
+                        "Cobertura habilitada: 100 %."
                       ]
                     }
                   ],
@@ -1221,8 +1237,8 @@
         "tags": [
           "Validación y compromiso"
         ],
-        "summary": "Reserva transaccional de las ofertas adjudicadas — Pendiente (Pista B)",
-        "description": "Rol: integracion. Todo o nada; idempotente por (emergenciaId, ofertaId).\nReparte automáticamente entre las ONGs de la oferta (principal primero).\n",
+        "summary": "Reserva transaccional de las ofertas adjudicadas",
+        "description": "Rol: integracion. Reserva el stock de las ofertas adjudicadas dentro de\nuna transacción, bloqueando cada fila de stock con `SELECT ... FOR UPDATE`.\n\n- Reparte entre las ONGs de la oferta: principal primero, cada una hasta\n  su disponible. `reparto` trae una fila por ONG y recurso.\n- El stock se comparte entre las ofertas del pedido: cada oferta ve lo que\n  dejó la anterior.\n- Todo o nada: si algún recurso no alcanza responde 409 y no reserva nada\n  (tampoco las ofertas anteriores del pedido). `detalle` trae `ofertaId`,\n  `recursoCodigo`, `solicitado`, `disponible`, `faltante` y `ongs`\n  (`[{ ongRef, disponible }]`, lo que tenía cada ONG de la oferta).\n- Idempotente por (emergenciaId, ofertaId), también ante reintentos en\n  paralelo: si la oferta ya estaba comprometida no reserva de nuevo y la\n  devuelve con `yaExistia: true`, su reparto original y su `estado`\n  (`liberado` si el proyecto ya se cerró). El cuerpo del reintento no se\n  compara: manda el compromiso original.\n- Orden de locks: primero `compromisos`, después `ong_recursos` por id.\n- Responde 400 con `detalle` por campo si el body no respeta el formato\n  (ej. `ofertas[0].items[0].cantidad`).\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -1254,7 +1270,7 @@
           }
         },
         "responses": {
-          "201": {
+          "200": {
             "description": "Recursos comprometidos",
             "content": {
               "application/json": {
