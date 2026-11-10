@@ -29,3 +29,7 @@ export function getRoleLabel(user) {
 export function isOngRepresentative(user) {
   return user?.role === ROLES.REPRESENTANTE_ONG;
 }
+
+export function isAuditor(user) {
+  return user?.role === ROLES.AUDITOR;
+}

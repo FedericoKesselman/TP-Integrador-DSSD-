@@ -1,4 +1,4 @@
-import pool from '../db.js';
+import pool, { withTransaction } from '../db.js';
 
 // Única capa que sabe de SQL para la tabla `emergencies`. Mapea entre el
 // objeto camelCase que usa el resto del server (mismo shape que
@@ -44,6 +44,9 @@ function rowToEmergency(row) {
     contactPhone: row.contact_phone,
     status: row.status,
     bonitaCaseId: row.bonita_case_id,
+    duracionConvocatoriaMin: row.duracion_convocatoria_min,
+    // Último 409 del SN al registrar el compromiso (null si no hubo o ya se resolvió).
+    ultimoConflictoCompromiso: row.ultimo_conflicto_compromiso,
     createdAt: row.created_at.toISOString(),
   };
 }
@@ -51,7 +54,7 @@ function rowToEmergency(row) {
 // Alta de una emergencia. `status` y `bonita_case_id` quedan en su default
 // de la tabla ('registrada' / NULL) — todavía no se integra con Bonita
 // (eso es la Fase 5 del roadmap), no se insertan explícitamente acá.
-export async function insertEmergency(payload) {
+export async function insertEmergency(payload, createdBy = null) {
   const values = [
     payload.type,
     payload.typeOther ?? null,
@@ -77,8 +80,15 @@ export async function insertEmergency(payload) {
     RETURNING *
   `;
 
-  const { rows } = await pool.query(query, values);
-  return rowToEmergency(rows[0]);
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(query, values);
+    await client.query(
+      `INSERT INTO emergency_status_history (emergency_id, from_status, to_status, changed_by)
+       VALUES ($1, NULL, $2, $3)`,
+      [rows[0].id, rows[0].status, createdBy],
+    );
+    return rowToEmergency(rows[0]);
+  });
 }
 
 // Listado completo, más reciente primero (ver docs/api-contracts.md).

@@ -6,6 +6,14 @@ activos y 1 pieza reservada para una entrega futura.
 
 ## Roadmap de la etapa actual
 
+El plan vigente es la **Entrega 5** (ciclo completo orquestado por Bonita):
+[`rescuesync/roadmapfase5.md`](./rescuesync/roadmapfase5.md). Leerlo antes de
+tocar estados de emergencia, `/api/internal/*`, adjudicaciones o el Sistema
+Nacional. Leyenda de tareas: `[ ]` pendiente, `[~]` implementada y probada sin
+Bonita (falta conectarla), `[x]` hecha y probada de punta a punta. Contratos de
+la API: `rescuesync/docs/api-contracts.md`. Tests del backend: `npm test` y
+`npm run test:sn` en `web-app/server`.
+
 El plan de implementación de la Entrega 2 (fases, orden de trabajo y la
 aclaración del profesor sobre autenticación vía el login service de Bonita)
 está documentado en [`rescuesync/roadmapfase2.md`](./rescuesync/roadmapfase2.md).
@@ -29,8 +37,11 @@ vía interfaz web.
 API externa que expone/consume información a nivel nacional, protegida con
 JWT. Se integra con `web-app/server` como servicio externo autenticado.
 
-- **Stack:** a definir (API con autenticación JWT).
-- **Estado:** aún no se codea — solo carpeta reservada por ahora.
+- **Stack:** Node/Express + JWT, desplegado en Render (Swagger en `/docs/`).
+- **Estado:** implementado (12 endpoints, tests propios con `node --test`).
+  Quien lo consume es Bonita; la web-app solo le habla para "Mi inventario"
+  (cuenta de integración).
+  Ver `rescuesync/sistema-nacional/` y el roadmap de la Entrega 5.
 
 ### 3. `dashboard/`
 Carpeta reservada para la **Entrega 4/5**. Combinará datos propios del
@@ -60,7 +71,7 @@ rescuesync/
 │   ├── server/          # Node + Express
 │   ├── shared/          # Validaciones/constantes compartidas client ↔ server
 │   └── docker-compose.yml
-├── sistema-nacional/     # API JWT (pendiente)
+├── sistema-nacional/     # API JWT (Render)
 ├── dashboard/            # Entrega 4/5 (stack a definir)
 ├── bonita/               # Diagrama BPM + conectores
 └── docs/                 # Documentación general

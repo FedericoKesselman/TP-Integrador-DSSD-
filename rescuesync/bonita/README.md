@@ -1,5 +1,17 @@
 # Bonita
 
+> ⚠️ **Desactualizado en parte (Entrega 5).** El paso 2 de "Puesta en marcha" y las
+> secciones "Notificaciones de convocatoria" / "Cierre de convocatoria" /
+> "Configuración local" / "Errores y reintentos" describen el diseño anterior
+> (`BONITA_NOTIFICATION_TOKEN`, `POST /api/notifications/convocatoria|cierre`):
+> esos endpoints **se retiraron**. Ahora Bonita llama a `/api/internal/*` con el
+> header `X-Integration-Key` (`BONITA_INTEGRATION_KEY` del backend, parámetro
+> `claveIntegracion` del proceso); contrato en
+> [`../docs/api-contracts.md`](../docs/api-contracts.md) → "Entrega 5 → Para Bonita".
+> `scripts/start-studio.sh` también conserva la variable vieja. Se reescribe en
+> E5-32/E5-91 del [roadmap](../roadmapfase5.md). Siguen vigentes: usuarios de
+> prueba, despliegue de la organización y mapeo de actores.
+
 El proyecto de Bonita (diagrama del proceso `GestionarEmergencia` y la
 organización **RescueSync**) vive en un **repositorio aparte**, conectado
 directamente desde Bonita Studio:

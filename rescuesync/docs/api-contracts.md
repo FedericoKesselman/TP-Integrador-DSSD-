@@ -168,9 +168,9 @@ también `{ "message": "..." }`.
 - `EmergencyStatus`: `registrada` (alta hecha) → `convocatoria_abierta`
   (el Coordinador publicó los lotes) → `convocatoria_cerrada` (venció el
   temporizador de Bonita) → `validada` → `adjudicada` → `en_ejecucion` →
-  `finalizada`. Los cuatro últimos son de la Entrega 3 (ver
-  "Entrega 3" más abajo); hoy el `CHECK` de la base solo admite los tres
-  primeros (se amplía en E3-50).
+  `finalizada`. Las transiciones permitidas y quién las dispara están en
+  "Entrega 5 → Estados y transiciones" más abajo. Fuente de las constantes:
+  `web-app/shared/workflow.js`.
 
 Definidos en el cliente en
 `client/src/features/emergencies/emergency-constants.js` y como `CHECK`
@@ -232,15 +232,16 @@ Coordinador arma el desglose completo antes de publicar la convocatoria).
 ```json
 {
   "lotes": [
-    { "resourceType": "Paramédicos", "unit": "personas", "quantityRequested": 5, "notes": null },
-    { "resourceType": "Raciones de alimento", "unit": "raciones", "quantityRequested": 1000, "notes": "aptas para celiacos si es posible" }
+    { "resourceType": "Paramédicos", "resourceCode": "paramedicos", "unit": "personas", "quantityRequested": 5, "notes": null },
+    { "resourceType": "Raciones de comida seca", "resourceCode": "raciones", "unit": "raciones", "quantityRequested": 1000, "notes": "aptas para celiacos si es posible" }
   ]
 }
 ```
 
 | Campo (de cada lote) | Tipo | Requerido | Reglas |
 |---|---|---|---|
-| `resourceType` | string | sí | texto libre (tipo de recurso) |
+| `resourceType` | string | sí | nombre para mostrar (etiqueta del catálogo) |
+| `resourceCode` | string | sí | id del catálogo (`^[a-z0-9-]+$`, ej. `paramedicos`); es lo que entiende el Sistema Nacional |
 | `unit` | string \| null | no | unidad del recurso ("personas", "raciones", "unidades") |
 | `quantityRequested` | integer | sí | > 0 |
 | `notes` | string \| null | no | |
@@ -251,14 +252,16 @@ Coordinador arma el desglose completo antes de publicar la convocatoria).
 {
   "emergencyId": "uuid",
   "lotes": [
-    { "id": "uuid", "resourceType": "Paramédicos", "unit": "personas", "quantityRequested": 5, "notes": null, "createdAt": "2026-09-24T14:00:00.000Z" }
+    { "id": "uuid", "resourceType": "Paramédicos", "resourceCode": "paramedicos", "unit": "personas", "quantityRequested": 5, "notes": null, "createdAt": "2026-09-24T14:00:00.000Z" }
   ]
 }
 ```
 
 **Respuesta `409 Conflict`** si la convocatoria ya fue publicada o cerrada.
 Una vez que la emergencia deja el estado `registrada`, sus lotes quedan
-bloqueados para conservar lo que se publicó a las ONGs.
+bloqueados para conservar lo que se publicó a las ONGs. Al **reformular**
+(ver `POST …/decision`) la emergencia vuelve a `registrada` y los lotes se
+pueden rearmar.
 
 ### `GET /api/emergencies/:emergencyId/lotes`
 
@@ -270,7 +273,15 @@ del Sistema Nacional.
 
 Publica oficialmente la convocatoria: pasa `emergencies.status` de
 `registrada` a `convocatoria_abierta`. Requiere que la emergencia tenga al
-menos un lote cargado. Esta acción también **completa en Bonita** las tareas
+menos un lote cargado.
+
+**Request body** (opcional): `{ "duracionMinutos": 120 }`: duración de la ventana
+de ofertas, entera, entre 1 y 10080 (mínimo y máximo en
+`shared/workflow.js`, `CONVOCATORIA_DURACION`); si no viene se usa 120. Se guarda
+en `emergencies.duracion_convocatoria_min` (se expone como
+`duracionConvocatoriaMin`) y viaja a Bonita como input `duracionConvocatoria` de
+"Publicar Convocatoria"; el timer lee esa variable. `400` con
+`{ message, errors: { duracionMinutos } }` si no es válida. Esta acción también **completa en Bonita** las tareas
 del coordinador que estén pendientes ("Revisar Emergencia", "Generar Lotes de
 Necesidades" y "Publicar Convocatoria"), con la sesión del usuario (ver
 `roadmapfase2.md`). Publicar en la web y avanzar en Bonita van juntos: si
@@ -383,8 +394,9 @@ Bonita que hizo el cambio (texto libre, sin FK).
 
 ### `GET /api/emergencies/:emergencyId/ofertas`
 
-Lista las ofertas de una emergencia (mismo shape que la respuesta del alta,
-en array). La usa el Centro Coordinador para revisarlas.
+Lista las ofertas de una emergencia para el Centro Coordinador. **El shape cambió
+en la Entrega 5**: trae las ofertas con su perfil de validación y la cobertura por
+lote (ver "Entrega 5 → Para el cliente").
 
 ### `GET /api/ofertas/ongs`
 
@@ -435,50 +447,143 @@ arranca en una fase posterior del roadmap (Fase 5 en adelante / Entrega 3).
 }
 ```
 
-**Reemplazado en la Entrega 3** por
-`GET /api/internal/emergencies/:id/consolidado` (ver "Entrega 3" más abajo):
+**Reemplazado** por
+`GET /api/internal/emergencies/:id/consolidado` (ver "Entrega 5 → Para Bonita"):
 devuelve directamente el body de `POST /validaciones` del Sistema Nacional y
 Bonita se autentica con el header `X-Integration-Key`.
 
 ### Enums
 
-- `OfertaStatus`: `registrada`, `retirada` y, desde la Entrega 3,
-  `validada`, `adjudicada`, `no_seleccionada`, `finalizada` (se suman al
-  `CHECK` en E3-50).
+- `OfertaStatus`: `registrada`, `retirada`, `validada`, `adjudicada`,
+  `no_seleccionada`, `finalizada` (ver "Entrega 5 → Estados y transiciones").
+  Cada item de una oferta trae también `resourceCode`.
 
-## Entrega 3: rutas internas (Bonita) y nuevas del cliente
+## Entrega 5: ciclo completo orquestado por Bonita
 
-Origen: sección 5 de [`roadmapfase3.md`](../roadmapfase3.md) (E3-01). El
-contrato del Sistema Nacional está en
-[`api-contracts-sistema-nacional.md`](./api-contracts-sistema-nacional.md).
-Todo esto está **pendiente de implementar** (Pistas D y E).
+Origen: secciones 4 y 5 de [`roadmapfase5.md`](../roadmapfase5.md) (E5-02); este
+archivo es la fuente única. El contrato del Sistema Nacional (sin cambios) está
+en [`api-contracts-sistema-nacional.md`](./api-contracts-sistema-nacional.md).
+Las constantes (estados, transiciones, tipos de aviso, duración de la ventana)
+viven en `web-app/shared/workflow.js`.
+
+### Estados y transiciones
+
+Emergencia: `registrada → convocatoria_abierta → convocatoria_cerrada →
+validada → adjudicada → en_ejecucion → finalizada`.
+
+| Desde | Hacia | Lo dispara |
+|---|---|---|
+| `registrada` | `convocatoria_abierta` | Publicar convocatoria (coordinador) |
+| `convocatoria_abierta` | `convocatoria_cerrada` | Bonita, al vencer el timer (`PATCH …/estado`) |
+| `convocatoria_cerrada` | `validada` | Bonita, al guardar los resultados del SN (`POST …/validaciones`, también con 0 ofertas) |
+| `validada` | `convocatoria_abierta` | Decisión **reabrir** |
+| `validada` | `registrada` | Decisión **reformular** |
+| `validada` | `adjudicada` | Bonita, al confirmar el compromiso (`POST …/compromiso-confirmado`) |
+| `adjudicada` | `en_ejecucion` | Bonita ("Etapa Ejecución", `PATCH …/estado`) |
+| `en_ejecucion` | `finalizada` | Bonita ("Liberar recursos", `PATCH …/estado`) |
+
+Cualquier otra transición responde `409`. Cada cambio deja una fila en
+`emergency_status_history` (alimenta el dashboard).
+
+Oferta: `registrada`, `retirada`, `validada`, `adjudicada`, `no_seleccionada`,
+`finalizada`. Al adjudicar, la selección del municipio se guarda aparte
+(`adjudicaciones`) y las ofertas **solo pasan a `adjudicada` /
+`no_seleccionada` cuando el SN confirma el compromiso**; si el SN rechaza, nada
+cambia. Las ofertas solo se crean o editan con la emergencia en
+`convocatoria_abierta`; al cerrar la convocatoria quedan bloqueadas.
+
+Además de `GET /api/emergencies` y `GET /api/emergencies/:id`, la emergencia expone
+`duracionConvocatoriaMin` y `ultimoConflictoCompromiso` (`null`, o
+`{ detalle, registradoAt }` con el último `409` del SN).
 
 ### Para Bonita (`/api/internal/*`)
 
 Bonita llama sin sesión de usuario. Se autentica con el header
-`X-Integration-Key: <BONITA_INTEGRATION_KEY>` (secreto en `server/.env` y en
-los parámetros del proceso). Sin el header o con otro valor → `401`.
+`X-Integration-Key: <BONITA_INTEGRATION_KEY>` (secreto en `server/.env`; en Bonita
+es el parámetro del proceso `claveIntegracion`). Sin el header o con otro valor →
+`401`; si la clave no está configurada en el server → `503`. `:id` debe ser un UUID
+(`400` si no).
 
 | Método y ruta | Qué hace |
 |---|---|
-| `GET /api/internal/emergencies/:id/consolidado` | Devuelve el body de `POST /validaciones` del SN (solo ofertas no retiradas; `rol` = `principal`/`asociada`→`apoyo` según `oferta_ongs`) |
-| `PATCH /api/internal/emergencies/:id/estado` | `{estado}`; valida la transición contra una whitelist (incluye las inversas de reabrir/reformular) |
-| `POST /api/internal/emergencies/:id/validaciones` | Guarda el `resultados` del SN, marca las ofertas `validada` y la emergencia `validada` |
-| `GET /api/internal/emergencies/:id/adjudicacion` | Devuelve el body de `POST /compromisos` del SN con las ofertas adjudicadas |
-| `GET /api/internal/emergencies/:id/finalizacion` | `{ongRefs:[…]}` de las ONGs que marcaron su oferta finalizada |
-| `POST /api/internal/emergencies/:id/notificaciones` | `{tipo: CONVOCATORIA \| COMPROMISO}`; la web-app decide los destinatarios |
+| `GET /api/internal/emergencies/:id/consolidado` | Body de `POST /validaciones` del SN: `{emergenciaId, severidad, lotes:[{id, recursoCodigo, cantidadSolicitada}], ofertas:[{ofertaId, ongs:[{ref, rol}], items:[{loteId, recursoCodigo, cantidadOfrecida}]}]}`. Solo ofertas no retiradas; `rol` = `principal`, y `asociada` → `apoyo` |
+| `PATCH /api/internal/emergencies/:id/estado` | `{estado}`; solo `convocatoria_cerrada`, `en_ejecucion` o `finalizada` (`400` con otro valor); valida la whitelist (`409` si no corresponde). Idempotente: si ya está en ese estado responde `200` con `alreadyApplied: true` |
+| `POST /api/internal/emergencies/:id/validaciones` | Respuesta del SN `{resultados, resumen}`. Exige emergencia `convocatoria_cerrada` y un resultado por cada oferta no retirada (`400` si no coinciden). Guarda los perfiles, ofertas → `validada`, emergencia → `validada`. Con 0 ofertas, `resultados: []`. Idempotente: si la emergencia ya está `validada` responde `200` con `alreadyApplied: true` (reintento de Bonita) |
+| `GET /api/internal/emergencies/:id/adjudicacion` | Body de `POST /compromisos` del SN con la selección del municipio: `{emergenciaId, ofertas:[{ofertaId, ongs, items:[{recursoCodigo, cantidad}]}]}`. La `cantidad` es lo habilitado por el SN en la validación (tope: lo ofrecido), sumado por recurso; un lote que el SN no habilitó no se compromete. `409` si el municipio no eligió nada |
+| `POST /api/internal/emergencies/:id/compromiso-confirmado` | `{compromisos}` del SN (`compromisoId`, `ofertaId`, `reparto`). Ofertas elegidas → `adjudicada`, el resto de las validadas → `no_seleccionada`, emergencia → `adjudicada`. Idempotente: si ya está `adjudicada` responde `200` con `alreadyApplied: true` |
+| `POST /api/internal/emergencies/:id/compromiso-fallido` | `{detalle}` del `409` del SN. La selección queda sin efecto, el detalle se guarda en `ultimoConflictoCompromiso` y la emergencia sigue `validada` |
+| `GET /api/internal/emergencies/:id/finalizacion` | `{ongRefs:[…]}` de las ONGs cuya oferta está `finalizada` |
+| `POST /api/internal/emergencies/:id/notificaciones` | `{tipo: CONVOCATORIA \| CIERRE_CONVOCATORIA \| COMPROMISO}`; la web-app decide los destinatarios (ver "Avisos"). Responde `{emergenciaId, tipo, created}` |
+
+Los endpoints `POST /api/notifications/convocatoria` y `/cierre` (con Bearer) **se
+retiraron**: los reemplaza `POST …/notificaciones`.
 
 ### Para el cliente (sesión de Bonita; el rol se valida en el backend)
 
 | Método y ruta | Rol | Qué hace |
 |---|---|---|
-| `GET /api/emergencies/:id/ofertas` | coordinador | Ofertas con su perfil de validación |
-| `POST /api/emergencies/:id/decision` | coordinador | `{camino: continuar \| reabrir \| reformular}`: completa "Decidir como Continuar" con `camino` y aplica el efecto (reabrir: ofertas → `registrada`, completa "Publicar Convocatoria", estado `convocatoria_abierta`; reformular: ofertas → `retirada`, estado `registrada`, el coordinador rearma lotes y vuelve a publicar con el endpoint existente) |
-| `GET /api/emergencies/:id/ofertas/validadas` | municipio | Solo ofertas validadas, con perfil |
-| `POST /api/emergencies/:id/adjudicacion` | municipio | `{ofertaIds:[…]}`; ofertas → `adjudicada`/`no_seleccionada`, completa "Adjudicar Ofertas"; si Bonita falla, revierte |
-| `POST /api/ofertas/:id/finalizar` | ONG | Marca la oferta `finalizada` (solo si está `adjudicada` y es de su ONG) |
-| `POST /api/emergencies/:id/cierre-ejecucion` | coordinador | Solo si todas las adjudicadas están `finalizada`; completa "Confirmar cierre de ejecución" |
-| `GET /api/notificaciones`, `PATCH /api/notificaciones/:id/leida` | ONG | Bandeja de la ONG |
+| `POST /api/emergencies/:id/convocatoria` | coordinador | `{duracionMinutos?}`; completa "Publicar Convocatoria" con el input `duracionConvocatoria` |
+| `GET /api/emergencies/:id/ofertas` | coordinador | `{emergencyId, status, todosLosLotesCubiertos, lotes:[{id, resourceType, resourceCode, unit, quantityRequested, cubierta}], ofertas:[{…oferta, validacion}]}`; `validacion` = `{nivelHabilitacion, rolSugerido, nivelRiesgoPermitido, capacidadesHabilitadas, observaciones}` o `null` si todavía no se validó; `cubierta` y `todosLosLotesCubiertos` son `null` mientras no haya una validación vigente |
+| `POST /api/emergencies/:id/decision` | coordinador | `{camino: continuar \| reabrir \| reformular, duracionMinutos?}` (la duración solo aplica al reabrir). Requiere emergencia `validada`. Completa "Decidir como Continuar" con el input `camino` y aplica el efecto de abajo |
+| `GET /api/emergencies/:id/ofertas/validadas` | municipio | Mismo shape, solo ofertas `validada` |
+| `POST /api/emergencies/:id/adjudicacion` | municipio | `{ofertaIds:[…]}`; guarda la selección (reemplaza la anterior) y completa "Adjudicar Ofertas"; si Bonita falla, revierte (`502`). El último `409` del SN se expone en `GET /api/emergencies/:id` (`ultimoConflictoCompromiso`) |
+| `POST /api/ofertas/:id/finalizar` | ONG | Solo si la oferta está `adjudicada` y es de su ONG (`409` si no; idempotente si ya estaba `finalizada`) |
+| `POST /api/emergencies/:id/cierre-ejecucion` | coordinador | Solo con la emergencia `en_ejecucion` y todas las adjudicadas `finalizada` (`409` con `detalle.pendientes` si no); completa "Confirmar cierre de ejecución". El pase a `finalizada` lo hace Bonita después |
+| `GET /api/notifications`, `PATCH /api/notifications/:id/leida` | ONG | Bandeja (ver "Avisos") |
+| `GET /api/inventario`, `PUT /api/inventario` | ONG | Stock leído y actualizado en el SN (ver "Inventario") |
+
+**Efectos de la decisión** (`POST …/decision`):
+
+- **continuar**: sin cambios en la base; solo se completa la tarea en Bonita, que sigue a "Adjudicar Ofertas".
+- **reabrir**: las ofertas vuelven a `registrada`, se descarta la selección vieja, la emergencia pasa a `convocatoria_abierta` con la nueva duración y se completan "Decidir como Continuar" y "Publicar Convocatoria" (con `duracionConvocatoria`). Si Bonita falla se revierte.
+- **reformular**: las ofertas pasan a `retirada` (snapshot en `oferta_historial`, `changed_by = reformular:<usuario>`), se borran sus renglones (`oferta_lotes`), cada ONG con oferta recibe un aviso `OFERTA_RETIRADA` en el mismo paso, y la emergencia vuelve a `registrada` para rearmar lotes y publicar de nuevo. Todo en una transacción que solo se confirma si Bonita avanza.
+
+Si Bonita no tenía pendiente la tarea que se pide, la web-app responde `502` y no aplica el cambio.
+
+**Inputs que la web-app manda a Bonita** (deben coincidir con el contrato de cada tarea
+en el `.proc`): "Publicar Convocatoria" → `{duracionConvocatoria: <entero, minutos>}`;
+"Decidir como Continuar" → `{camino: "continuar" | "reabrir" | "reformular"}` (en
+minúsculas). Las demás tareas se completan con `{}`.
+
+**Nombres exactos de tareas que la web-app completa:** "Registrar Emergencia",
+"Revisar Emergencia", "Generar Lotes de Necesidades", "Publicar Convocatoria",
+"Adjudicar Ofertas", "Decidir como Continuar", "Confirmar cierre de ejecución".
+
+### Avisos (bandeja de la ONG)
+
+Tipos: `CONVOCATORIA`, `CIERRE_CONVOCATORIA`, `OFERTA_RETIRADA` (la emite la propia
+web-app al reformular), `ADJUDICADA`, `NO_SELECCIONADA`. Bonita manda el tipo
+`COMPROMISO` y la web-app genera `ADJUDICADA` (ONGs con alguna oferta
+adjudicada) o `NO_SELECCIONADA` (ONGs cuyas ofertas no fueron elegidas y que no
+tienen ninguna adjudicada). `CONVOCATORIA` y `CIERRE_CONVOCATORIA` van a todas las
+ONGs de la red. Cada pedido exige el estado correspondiente de la emergencia
+(`convocatoria_abierta`, `convocatoria_cerrada`, `adjudicada`/`en_ejecucion`) o
+responde `409`.
+
+Un aviso es único por `(emergencia, ONG, tipo, ronda)`: la ronda cuenta las veces
+que se publicó la convocatoria, así los reintentos de Bonita no duplican y al
+reabrir las ONGs vuelven a recibir aviso.
+
+`GET /api/notifications` (rol `representante_ong`) devuelve los avisos de la ONG de
+la sesión, más recientes primero: `[{id, tipo, emergencyId, emergencyDescription,
+emergencyType, emergencySeverity, emergencyProvince, emergencyMunicipality,
+emergencyStatus, leida, leidaAt, createdAt}]`. `PATCH /api/notifications/:id/leida`
+marca como leído un aviso propio (`404` si no existe o es de otra ONG).
+
+### Inventario
+
+Pantalla "Mi inventario". El backend de la web-app habla con el SN con la cuenta de
+integración (`SN_INTEGRATION_USERNAME` / `SN_INTEGRATION_PASSWORD`; URL en
+`SISTEMA_NACIONAL_API_URL`, por defecto la de Render) y toma la ONG **siempre de la
+sesión** (`ongRef`). Es la **única excepción** a "solo Bonita habla con el SN":
+es mantenimiento del stock, no un paso del ciclo.
+
+- `GET /api/inventario` → `[{recursoCodigo, nombre, unidad, cantidadTotal, cantidadComprometida, cantidadDisponible}]`.
+- `PUT /api/inventario` con `{recursos:[{recursoCodigo, cantidadTotal}]}` (enteros ≥ 0)
+  → el stock completo. Errores: `400` datos inválidos o recurso desconocido; `409` si el
+  total quedaría por debajo de lo comprometido (con `detalle`) o si la ONG no está en el
+  SN; `502` si el SN no responde (el primer pedido puede tardar ~1 minuto por el
+  arranque en frío de Render; el timeout es de 90 s).
 
 ## Datos geográficos
 
@@ -499,21 +604,8 @@ Mientras el endpoint no exista, el cliente corre con `VITE_USE_MOCK_API=true`
 (`rescuesync:emergencies`). Para usar el backend real: crear `client/.env` con
 `VITE_USE_MOCK_API=false`. Vite redirige `/api` a `http://localhost:4000`.
 
-## Notificaciones persistentes de convocatoria
+## Notificaciones
 
-`POST /api/notifications/convocatoria` es una llamada técnica de Bonita.
-Requiere `Authorization: Bearer <BONITA_NOTIFICATION_TOKEN>` y JSON
-`{"emergenciaId":"UUID"}`. La emergencia debe estar en
-`convocatoria_abierta`. Inserta un aviso por ONG de la red en una
-transacción; la clave única `(emergency_id, ong_id)` evita duplicados.
-Respuesta `200`: `{ "emergenciaId": "UUID", "created": 2 }` (cantidad
-insertada, cero en un reintento sin nuevas ONG). Errores: `400`, `401`,
-`404`, `409`, `500` y `503` si falta configurar el secreto.
-
-`GET /api/notifications` requiere sesión de Bonita con rol
-`representante_ong`. Devuelve los avisos de la ONG identificada por el
-grupo de la sesión: `[{id, emergencyId, createdAt}]`, más recientes primero.
-No permite consultar avisos de otra ONG mediante parámetros del cliente.
-
-Ver `bonita/README.md` para configuración y reintentos. El correo y las
-notificaciones de adjudicación quedan fuera de este contrato.
+Ver "Entrega 5 → Avisos" más arriba. Los avisos son solo dentro de la app (bandeja
+de la ONG); el correo queda fuera de alcance. `bonita/README.md` documenta la
+configuración de los conectores.

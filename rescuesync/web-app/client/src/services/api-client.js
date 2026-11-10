@@ -1,11 +1,13 @@
 const API_BASE_URL = '/api';
 
 export class ApiError extends Error {
-  constructor(message, { status, details } = {}) {
+  // `details` = errores por campo (400); `detalle` = datos de un conflicto de negocio (409).
+  constructor(message, { status, details, detalle } = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.details = details;
+    this.detalle = detalle;
   }
 }
 
@@ -26,6 +28,7 @@ export async function apiRequest(path, { method = 'GET', body } = {}) {
     throw new ApiError(data?.message || `Error ${response.status} del servidor.`, {
       status: response.status,
       details: data?.errors,
+      detalle: data?.detalle,
     });
   }
   return data;

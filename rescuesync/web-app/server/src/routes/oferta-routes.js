@@ -1,7 +1,12 @@
 import { Router } from 'express';
 
 import { requireRole, requireSession } from '../middleware/auth-middleware.js';
-import { listOngs, listOwnOfertaHistory, updateOwnOferta } from '../ofertas/ofertas-repository.js';
+import {
+  finalizeOwnOferta,
+  listOngs,
+  listOwnOfertaHistory,
+  updateOwnOferta,
+} from '../ofertas/ofertas-repository.js';
 import { validateOfertaPayload } from '../validate-oferta.js';
 
 const router = Router();
@@ -40,6 +45,20 @@ router.put('/:id', async (req, res) => {
       return res.status(error.status).json({ message: error.message });
     }
     return res.status(500).json({ message: 'No se pudo actualizar la oferta.' });
+  }
+});
+
+// POST /api/ofertas/:id/finalizar — la ONG marca su oferta adjudicada como finalizada
+router.post('/:id/finalizar', async (req, res) => {
+  try {
+    const oferta = await finalizeOwnOferta(req.params.id, req.session.ongRef, req.session.username);
+    return res.json(oferta);
+  } catch (error) {
+    console.error(error);
+    if (error.status) {
+      return res.status(error.status).json({ message: error.message });
+    }
+    return res.status(500).json({ message: 'No se pudo finalizar la oferta.' });
   }
 });
 

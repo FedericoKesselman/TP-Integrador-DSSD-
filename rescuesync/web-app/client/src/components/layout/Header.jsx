@@ -3,9 +3,21 @@ import PropTypes from 'prop-types';
 import { useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 
-import { isMunicipalOperator, isOngRepresentative, getRoleLabel } from '../../lib/auth-roles.js';
+import {
+  getRoleLabel,
+  isAuditor,
+  isMunicipalOperator,
+  isOngRepresentative,
+} from '../../lib/auth-roles.js';
 
 import NotificationInbox from './NotificationInbox.jsx';
+
+const navLinkClass = ({ isActive }) =>
+  `px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
+    isActive
+      ? 'bg-white/20 text-white shadow-2xs'
+      : 'text-white/70 hover:bg-white/10 hover:text-white'
+  }`;
 
 function Header({ user = null, userName = '', onLogout }) {
   const [confirmingLogout, setConfirmingLogout] = useState(false);
@@ -32,31 +44,27 @@ function Header({ user = null, userName = '', onLogout }) {
           </Link>
 
           <nav className="hidden sm:flex items-center gap-1.5 ml-4 border-l border-white/15 pl-4">
-            <NavLink
-              to="/emergencias"
-              end
-              className={({ isActive }) =>
-                `px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-white/20 text-white shadow-2xs'
-                    : 'text-white/70 hover:bg-white/10 hover:text-white'
-                }`
-              }
-            >
+            <NavLink to="/emergencias" end className={navLinkClass}>
               Bandeja de Incidentes
             </NavLink>
             {canRegisterEmergency && (
-              <NavLink
-                to="/emergencias/nueva"
-                className={({ isActive }) =>
-                  `px-3 py-1 rounded-lg text-xs font-semibold transition-colors ${
-                    isActive
-                      ? 'bg-white/20 text-white shadow-2xs'
-                      : 'text-white/70 hover:bg-white/10 hover:text-white'
-                  }`
-                }
-              >
+              <NavLink to="/emergencias/nueva" className={navLinkClass}>
                 + Alta de Emergencia
+              </NavLink>
+            )}
+            {isOngRepresentative(user) && (
+              <>
+                <NavLink to="/mis-ofertas" className={navLinkClass}>
+                  Mis ofertas
+                </NavLink>
+                <NavLink to="/inventario" className={navLinkClass}>
+                  Mi inventario
+                </NavLink>
+              </>
+            )}
+            {isAuditor(user) && (
+              <NavLink to="/dashboard" className={navLinkClass}>
+                Dashboard
               </NavLink>
             )}
           </nav>

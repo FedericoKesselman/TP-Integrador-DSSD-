@@ -1,5 +1,7 @@
 FROM node:20-alpine
 
+ENV NODE_ENV=production
+
 WORKDIR /app
 
 # Contexto de build = web-app/ (ver docker-compose.yml: build.context: .),
@@ -11,11 +13,14 @@ WORKDIR /app
 # explícita, una imagen "de verdad" sin esos volumes se rompía con
 # ERR_MODULE_NOT_FOUND).
 COPY server/package*.json ./
-RUN npm install
+# Imagen de producción: sin devDependencies (eslint, prettier, node-pg-migrate).
+RUN npm ci --omit=dev
 
 COPY server/ .
 COPY shared/ /shared/
 
 EXPOSE 4000
 
-CMD ["npm", "run", "dev"]
+# Producción por defecto; el modo desarrollo (node --watch) lo pide
+# docker-compose.yml con `command: npm run dev`.
+CMD ["npm", "start"]
