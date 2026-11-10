@@ -67,8 +67,9 @@ export async function saveLotes(emergencyId, lotes) {
   });
 }
 
-// POST /api/emergencies/:emergencyId/convocatoria
-export async function publishConvocatoria(emergencyId) {
+// POST /api/emergencies/:emergencyId/convocatoria con { duracionMinutos } (ventana de ofertas).
+// Si no se manda, el backend usa la duración sugerida.
+export async function publishConvocatoria(emergencyId, duracionMinutos = undefined) {
   if (USE_MOCK_API) {
     await new Promise((resolve) => {
       setTimeout(resolve, MOCK_LATENCY_MS);
@@ -89,5 +90,6 @@ export async function publishConvocatoria(emergencyId) {
 
   return apiRequest(`/emergencies/${emergencyId}/convocatoria`, {
     method: 'POST',
+    body: duracionMinutos === undefined ? undefined : { duracionMinutos },
   });
 }

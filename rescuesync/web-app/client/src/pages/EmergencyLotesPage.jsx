@@ -53,6 +53,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import Alert from '../components/ui/Alert.jsx';
 import Button from '../components/ui/Button.jsx';
 import MiniIncidentMap from '../components/ui/MiniIncidentMap.jsx';
+import DuracionConvocatoriaField from '../features/emergencies/components/DuracionConvocatoriaField.jsx';
+import {
+  DURACION_DEFAULT,
+  formatDuracion,
+  getDuracionError,
+  parseDuracion,
+} from '../features/emergencies/duracion.js';
 import {
   calculateSuggestedQuantity,
   generateAdaptivePresets,
@@ -230,6 +237,7 @@ function EmergencyLotesPage() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [duracion, setDuracion] = useState(DURACION_DEFAULT);
 
   // Estado de selecciones: { [categoryId]: { [resourceId]: { selected, qty, notes } } }
   const [selections, setSelections] = useState({});
@@ -453,10 +461,13 @@ function EmergencyLotesPage() {
     try {
       setPublishing(true);
       await saveLotes(id, selectedLotes);
-      const res = await publishConvocatoria(id);
+      const duracionMinutos = parseDuracion(duracion);
+      const res = await publishConvocatoria(id, duracionMinutos);
       setEmergency((prev) => ({ ...prev, status: res.status }));
       setShowConfirmModal(false);
-      setSuccessMessage('¡Convocatoria publicada con éxito!');
+      setSuccessMessage(
+        `¡Convocatoria publicada con éxito! Las ONGs pueden ofertar durante ${formatDuracion(duracionMinutos)}.`,
+      );
     } catch (err) {
       setError(err.message);
       setShowConfirmModal(false);
@@ -1507,6 +1518,15 @@ function EmergencyLotesPage() {
               </div>
             </div>
 
+            <div className="mt-5">
+              <DuracionConvocatoriaField
+                id="duracion-convocatoria"
+                value={duracion}
+                onChange={setDuracion}
+                disabled={publishing}
+              />
+            </div>
+
             <div className="mt-8 flex items-center justify-end gap-3">
               <button
                 type="button"
@@ -1517,7 +1537,7 @@ function EmergencyLotesPage() {
               </button>
               <button
                 type="button"
-                disabled={publishing}
+                disabled={publishing || Boolean(getDuracionError(duracion))}
                 onClick={handlePublish}
                 className="flex items-center gap-2 rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-black text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-700 transition-all disabled:opacity-50 cursor-pointer"
               >
