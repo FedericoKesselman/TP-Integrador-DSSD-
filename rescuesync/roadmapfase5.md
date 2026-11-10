@@ -414,7 +414,7 @@ planificación; las horas reales van a la bitácora E5-90).
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
 |---|---|---|---|---|---|---|
 | [ ] E5-60 | Verificar que existe un usuario Auditor en la organización de Bonita (crearlo si falta) y que puede leer por la API REST las tareas cerradas de los casos; prueba mínima de una consulta de tiempos | 2 | E5-02 | — | P1 | |
-| [ ] E5-61 | Backend del dashboard con datos propios (5.5): `/api/dashboard/indicadores` | 4.5 | E5-10 | E5-19, E5-21 | P1 | Ignacio 10/11 |
+| [~] E5-61 | Backend del dashboard con datos propios (5.5): `/api/dashboard/indicadores` | 4.5 | E5-10 | E5-19, E5-21 | P1 | Ignacio 10/11 · hecho: `GET /api/dashboard/indicadores` (auditor; suministros por mes y recurso, % consorcios, estado de proyectos, cobertura promedio), contrato documentado. Probado con `tests/dashboard.integration.js` (Postgres real: permisos, vacío, ofertas que no cuentan, tope de cobertura). **Falta:** que lo consuma E5-63; el mes usa `ofertas.updated_at` (no hay fecha de adjudicación por oferta) |
 | [ ] E5-62 | Backend del dashboard con datos de Bonita: `/api/dashboard/tiempos-etapas` (promedio por etapa) con la sesión del Auditor | 5 | E5-60 | E5-75 | P1 | |
 | [ ] E5-63 | Frontend del dashboard: página del Auditor/Directivo con indicadores, gráficos interactivos y filtros. Reemplazar el `dashboard/` vacío por un README que explique que es un módulo | 6 | E5-50, E5-61 | E5-62 | P1 | |
 | [ ] E5-64 | Exportación de datos estructurados (CSV y JSON) desde el dashboard | 2 | E5-61 | — | P1 | |
