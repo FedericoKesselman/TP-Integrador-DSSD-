@@ -4,7 +4,6 @@ import {
   ArrowRight,
   Boxes,
   Calendar,
-  CheckCircle2,
   Clock,
   Flame,
   HelpCircle,
@@ -25,7 +24,14 @@ import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import Alert from '../components/ui/Alert.jsx';
 import Button from '../components/ui/Button.jsx';
 import MiniIncidentMap from '../components/ui/MiniIncidentMap.jsx';
+import EmergencyStatusStepper from '../features/emergencies/components/EmergencyStatusStepper.jsx';
+import StatusBadge from '../features/emergencies/components/StatusBadge.jsx';
 import { SEVERITY_LEVELS } from '../features/emergencies/emergency-constants.js';
+import {
+  getCicloAction,
+  getRoleHint,
+  STATUS_FLOW,
+} from '../features/emergencies/emergency-status.js';
 import {
   isMunicipalOperator,
   isOngRepresentative,
@@ -402,8 +408,11 @@ function EmergenciesListPage() {
               className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 transition-all cursor-pointer"
             >
               <option value="all">Todos los estados</option>
-              <option value="registrada">🟡 Pendientes de Desglose</option>
-              <option value="convocatoria_abierta">🟢 Convocatoria Abierta</option>
+              {STATUS_FLOW.map((step) => (
+                <option key={step.value} value={step.value}>
+                  {step.label}
+                </option>
+              ))}
             </select>
 
             {/* Dropdown Severidad */}
@@ -494,6 +503,9 @@ function EmergenciesListPage() {
               const TypeIcon = typeConf.icon;
               const severityPill = SEVERITY_PILLS[item.severity] || SEVERITY_PILLS.media;
               const isAbierta = item.status === 'convocatoria_abierta';
+              const canOpenLotes = canManageLotes && (item.status === 'registrada' || isAbierta);
+              const roleHint = getRoleHint(item.status, user);
+              const cicloAction = getCicloAction(item, user);
 
               return (
                 <div
@@ -633,19 +645,15 @@ function EmergenciesListPage() {
                         </div>
 
                         {/* Tag de Estado */}
-                        <div>
-                          {isAbierta ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800 ring-1 ring-emerald-600/20">
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                              Convocatoria Abierta
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-600/20">
-                              <Clock className="h-3.5 w-3.5 text-amber-600 animate-pulse" />
-                              Por Desglosar
-                            </span>
-                          )}
-                        </div>
+                        <StatusBadge status={item.status} />
+                      </div>
+
+                      {/* Etapa del ciclo y, si no hay acción para este rol, qué está pasando */}
+                      <div className="rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs">
+                        <EmergencyStatusStepper status={item.status} />
+                        {!canOpenLotes && !(canManageOffers && isAbierta) && roleHint && (
+                          <p className="mt-3 text-xs font-medium text-slate-600">{roleHint}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -653,7 +661,18 @@ function EmergenciesListPage() {
                   {/* ══════════════════════════════════════════════════
                       BOTÓN DE ACCIÓN REDISEÑADO (MODERNO, CON VOLUMEN Y GRADIENTE)
                   ══════════════════════════════════════════════════ */}
-                  {canManageLotes && (
+                  {cicloAction && (
+                    <div className="mt-6 pt-2">
+                      <Link
+                        to={cicloAction.to}
+                        className="group/btn flex w-full items-center justify-center gap-2.5 rounded-2xl bg-slate-900 px-5 py-3.5 text-sm font-black text-white shadow-md transition-all duration-200 hover:bg-slate-800 hover:shadow-lg active:scale-[0.99]"
+                      >
+                        <span>{cicloAction.label}</span>
+                        <ArrowRight className="h-4 w-4 transition-transform group-hover/btn:translate-x-1" />
+                      </Link>
+                    </div>
+                  )}
+                  {canOpenLotes && (
                     <div className="mt-6 pt-2">
                       <Link
                         to={`/emergencias/${item.id}/lotes`}

@@ -1,10 +1,17 @@
-import pool from '../db.js';
+import pool, { withTransaction } from '../db.js';
+import {
+  changeEmergencyStatus,
+  lockEmergency,
+  revertEmergencyStatus,
+} from '../emergencies/state-machine.js';
+import { createDomainError } from '../errors.js';
 
 function rowToLote(row) {
   return {
     id: row.id,
     emergencyId: row.emergency_id,
     resourceType: row.resource_type,
+    resourceCode: row.resource_code,
     unit: row.unit,
     quantityRequested: row.quantity_requested,
     notes: row.notes,
@@ -14,58 +21,42 @@ function rowToLote(row) {
 
 // Guarda o reemplaza los lotes asociados a una emergencia (guardado de borrador / actualización de desglose)
 export async function saveLotesForEmergency(emergencyId, lotesList) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+  return withTransaction(async (client) => {
+    const emergency = await lockEmergency(client, emergencyId);
 
-    // Verificar si la emergencia existe
-    const emgRes = await client.query('SELECT id, status FROM emergencies WHERE id = $1', [emergencyId]);
-    if (emgRes.rowCount === 0) {
-      const err = new Error('Emergencia no encontrada.');
-      err.status = 404;
-      throw err;
-    }
-
-    if (emgRes.rows[0].status !== 'registrada') {
-      const err = new Error(
+    if (emergency.status !== 'registrada') {
+      throw createDomainError(
         'Los lotes no se pueden modificar después de publicar la convocatoria.',
+        409,
       );
-      err.status = 409;
-      throw err;
     }
 
     // Limpiar lotes previos de esta emergencia para guardar la lista actualizada
     await client.query('DELETE FROM lotes WHERE emergency_id = $1', [emergencyId]);
 
-    const insertedLotes = await Promise.all(
-      lotesList.map(async (lote) => {
-        const result = await client.query(
-          `INSERT INTO lotes (emergency_id, resource_type, unit, quantity_requested, notes)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING *`,
-          [
-            emergencyId,
-            lote.resourceType.trim(),
-            lote.unit?.trim() || null,
-            Number(lote.quantityRequested),
-            lote.notes?.trim() || null,
-          ],
-        );
-        return rowToLote(result.rows[0]);
-      }),
-    );
+    const insertedLotes = [];
+    // Se insertan de a uno para conservar el orden de carga.
+    // eslint-disable-next-line no-restricted-syntax
+    for (const lote of lotesList) {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await client.query(
+        `INSERT INTO lotes (emergency_id, resource_type, resource_code, unit, quantity_requested, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [
+          emergencyId,
+          lote.resourceType.trim(),
+          lote.resourceCode,
+          lote.unit?.trim() || null,
+          Number(lote.quantityRequested),
+          lote.notes?.trim() || null,
+        ],
+      );
+      insertedLotes.push(rowToLote(result.rows[0]));
+    }
 
-    await client.query('COMMIT');
-    return {
-      emergencyId,
-      lotes: insertedLotes,
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    return { emergencyId, lotes: insertedLotes };
+  });
 }
 
 // Listar lotes de una emergencia
@@ -77,56 +68,49 @@ export async function listLotesForEmergency(emergencyId) {
   return rows.map(rowToLote);
 }
 
-// Publicar la convocatoria (pasa emergencies.status de 'registrada' a 'convocatoria_abierta')
-export async function publishConvocatoriaForEmergency(emergencyId) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
+// Publicar la convocatoria (pasa emergencies.status de 'registrada' a
+// 'convocatoria_abierta') y guarda la duración de la ventana de ofertas.
+export async function publishConvocatoriaForEmergency(emergencyId, duracionMinutos, changedBy) {
+  return withTransaction(async (client) => {
+    const emergency = await lockEmergency(client, emergencyId);
 
-    const emgRes = await client.query('SELECT id, status FROM emergencies WHERE id = $1', [emergencyId]);
-    if (emgRes.rowCount === 0) {
-      const err = new Error('Emergencia no encontrada.');
-      err.status = 404;
-      throw err;
+    if (emergency.status !== 'registrada') {
+      throw createDomainError(
+        `La emergencia no se puede abrir: su estado actual es "${emergency.status}".`,
+        409,
+      );
     }
 
-    const currentStatus = emgRes.rows[0].status;
-    if (currentStatus !== 'registrada') {
-      const err = new Error(`La emergencia no se puede abrir: su estado actual es "${currentStatus}".`);
-      err.status = 409;
-      throw err;
-    }
-
-    const lotesCountRes = await client.query('SELECT COUNT(*) AS count FROM lotes WHERE emergency_id = $1', [emergencyId]);
-    const count = Number(lotesCountRes.rows[0].count);
-    if (count === 0) {
-      const err = new Error('La emergencia no tiene lotes cargados.');
-      err.status = 409;
-      throw err;
+    const lotesCountRes = await client.query(
+      'SELECT COUNT(*) AS count FROM lotes WHERE emergency_id = $1',
+      [emergencyId],
+    );
+    if (Number(lotesCountRes.rows[0].count) === 0) {
+      throw createDomainError('La emergencia no tiene lotes cargados.', 409);
     }
 
     await client.query(
-      "UPDATE emergencies SET status = 'convocatoria_abierta' WHERE id = $1",
-      [emergencyId],
+      `UPDATE emergencies
+       SET duracion_convocatoria_min = $2, convocatoria_ronda = convocatoria_ronda + 1
+       WHERE id = $1`,
+      [emergencyId, duracionMinutos],
     );
+    await changeEmergencyStatus(client, emergency, 'convocatoria_abierta', changedBy);
 
-    await client.query('COMMIT');
-    return {
-      emergencyId,
-      status: 'convocatoria_abierta',
-    };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
-  }
+    return { emergencyId, status: 'convocatoria_abierta', duracionMinutos };
+  });
 }
 
 // Deshace la publicación si Bonita no pudo avanzar (vuelve a 'registrada').
 export async function revertConvocatoria(emergencyId) {
-  await pool.query(
-    "UPDATE emergencies SET status = 'registrada' WHERE id = $1 AND status = 'convocatoria_abierta'",
-    [emergencyId],
-  );
+  await withTransaction(async (client) => {
+    await revertEmergencyStatus(client, emergencyId, 'convocatoria_abierta', 'registrada');
+    await client.query(
+      `UPDATE emergencies
+       SET duracion_convocatoria_min = NULL,
+           convocatoria_ronda = GREATEST(convocatoria_ronda - 1, 0)
+       WHERE id = $1 AND status = 'registrada'`,
+      [emergencyId],
+    );
+  });
 }

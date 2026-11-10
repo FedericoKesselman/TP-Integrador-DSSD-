@@ -36,7 +36,7 @@ async function findOngByRef(queryable, ongRef) {
   return result.rows[0];
 }
 
-async function getOfertaById(queryable, ofertaId) {
+export async function getOfertaById(queryable, ofertaId) {
   const ofertaResult = await queryable.query('SELECT * FROM ofertas WHERE id = $1', [ofertaId]);
   if (ofertaResult.rowCount === 0) return null;
 
@@ -45,13 +45,13 @@ async function getOfertaById(queryable, ofertaId) {
      FROM oferta_ongs oo
      JOIN ongs o ON o.id = oo.ong_id
      WHERE oo.oferta_id = $1
-     ORDER BY oo.created_at ASC`,
+     ORDER BY (oo.role = 'principal') DESC, oo.created_at ASC, o.name ASC`,
     [ofertaId],
   );
 
   const itemsResult = await queryable.query(
     `SELECT ol.id, ol.lote_id, ol.quantity_offered, ol.notes,
-            l.resource_type, l.unit, l.quantity_requested
+            l.resource_type, l.resource_code, l.unit, l.quantity_requested
      FROM oferta_lotes ol
      JOIN lotes l ON l.id = ol.lote_id
      WHERE ol.oferta_id = $1
@@ -68,6 +68,7 @@ async function getOfertaById(queryable, ofertaId) {
     id: row.id,
     loteId: row.lote_id,
     resourceType: row.resource_type,
+    resourceCode: row.resource_code,
     unit: row.unit,
     quantityRequested: row.quantity_requested,
     quantityOffered: row.quantity_offered,
@@ -164,9 +165,12 @@ export async function createOfertaForEmergency(emergencyId, ongRef, payload) {
   try {
     await client.query('BEGIN');
 
-    const emergencyResult = await client.query('SELECT id, status FROM emergencies WHERE id = $1', [
-      emergencyId,
-    ]);
+    // FOR SHARE: si Bonita está cerrando la convocatoria en este instante, la
+    // oferta espera y después ve el estado nuevo (no se cuela una oferta tardía).
+    const emergencyResult = await client.query(
+      'SELECT id, status FROM emergencies WHERE id = $1 FOR SHARE',
+      [emergencyId],
+    );
     if (emergencyResult.rowCount === 0) {
       throw createDomainError('Emergencia no encontrada.', 404);
     }
@@ -237,7 +241,7 @@ export async function updateOwnOferta(ofertaId, ongRef, changedBy, payload) {
        FROM ofertas f
        JOIN emergencies e ON e.id = f.emergency_id
        WHERE f.id = $1
-       FOR UPDATE OF f`,
+       FOR UPDATE OF f FOR SHARE OF e`,
       [ofertaId],
     );
     if (ofertaResult.rowCount === 0) {
@@ -323,4 +327,100 @@ export async function listOwnOfertaHistory(ofertaId, ongRef) {
     changedBy: row.changed_by,
     changedAt: row.changed_at.toISOString(),
   }));
+}
+
+// E5-21: la ONG marca su oferta adjudicada como finalizada. Idempotente: si ya
+// estaba finalizada devuelve la oferta tal cual.
+export async function finalizeOwnOferta(ofertaId, ongRef, username) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const ofertaResult = await client.query(
+      'SELECT id, status FROM ofertas WHERE id = $1 FOR UPDATE',
+      [ofertaId],
+    );
+    if (ofertaResult.rowCount === 0) {
+      throw createDomainError('Oferta no encontrada.', 404);
+    }
+
+    const ong = await findOngByRef(client, ongRef);
+    await ensureOngOwnsOferta(client, ofertaId, ong.id);
+
+    const { status } = ofertaResult.rows[0];
+    if (status !== 'finalizada') {
+      if (status !== 'adjudicada') {
+        throw createDomainError(
+          `Solo se puede finalizar una oferta adjudicada (estado actual: "${status}").`,
+          409,
+        );
+      }
+      await client.query("UPDATE ofertas SET status = 'finalizada' WHERE id = $1", [ofertaId]);
+      await client.query(
+        `INSERT INTO oferta_finalizaciones (oferta_id, ong_id, finalizada_by)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (oferta_id) DO NOTHING`,
+        [ofertaId, ong.id, username],
+      );
+    }
+
+    const oferta = await getOfertaById(client, ofertaId);
+    await client.query('COMMIT');
+    return oferta;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+// `ref` de las ONGs que ya marcaron su oferta como finalizada en la emergencia
+// (lo consume Bonita en "Informar Cierre" para avisar al SN).
+export async function listFinalizedOngRefs(emergencyId) {
+  const emergency = await pool.query('SELECT id FROM emergencies WHERE id = $1', [emergencyId]);
+  if (emergency.rowCount === 0) {
+    throw createDomainError('Emergencia no encontrada.', 404);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT DISTINCT o.bonita_org_ref
+     FROM ofertas f
+     JOIN oferta_ongs oo ON oo.oferta_id = f.id
+     JOIN ongs o ON o.id = oo.ong_id
+     WHERE f.emergency_id = $1 AND f.status = 'finalizada' AND o.bonita_org_ref IS NOT NULL
+     ORDER BY o.bonita_org_ref`,
+    [emergencyId],
+  );
+  return rows.map((row) => row.bonita_org_ref);
+}
+
+// Estado de la ejecución para "Confirmar cierre de ejecución": qué ofertas
+// adjudicadas todavía no se marcaron como finalizadas.
+export async function getEjecucionStatus(emergencyId) {
+  const emergency = await pool.query('SELECT id, status FROM emergencies WHERE id = $1', [
+    emergencyId,
+  ]);
+  if (emergency.rowCount === 0) {
+    throw createDomainError('Emergencia no encontrada.', 404);
+  }
+
+  const { rows } = await pool.query(
+    `SELECT f.id, f.status, array_agg(o.name ORDER BY o.name) AS ong_names
+     FROM ofertas f
+     JOIN oferta_ongs oo ON oo.oferta_id = f.id
+     JOIN ongs o ON o.id = oo.ong_id
+     WHERE f.emergency_id = $1 AND f.status IN ('adjudicada', 'finalizada')
+     GROUP BY f.id, f.status`,
+    [emergencyId],
+  );
+
+  return {
+    status: emergency.rows[0].status,
+    finalizadas: rows.filter((row) => row.status === 'finalizada').length,
+    pendientes: rows
+      .filter((row) => row.status === 'adjudicada')
+      .map((row) => ({ ofertaId: row.id, ongs: row.ong_names })),
+  };
 }

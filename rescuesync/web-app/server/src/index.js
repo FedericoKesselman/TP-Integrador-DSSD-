@@ -6,6 +6,8 @@ import session from 'express-session';
 import pool from './db.js';
 import authRoutes from './routes/auth-routes.js';
 import emergencyRoutes from './routes/emergency-routes.js';
+import internalRoutes from './routes/internal-routes.js';
+import inventarioRoutes from './routes/inventario-routes.js';
 import notificationRoutes from './routes/notification-routes.js';
 import ofertaRoutes from './routes/oferta-routes.js';
 
@@ -20,6 +22,9 @@ app.use('/api/auth', authRoutes); // "Toda petición que empiece con /api/auth, 
 app.use('/api/emergencies', emergencyRoutes);
 app.use('/api/ofertas', ofertaRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/inventario', inventarioRoutes);
+// Rutas de Bonita: sin sesión de usuario, con X-Integration-Key.
+app.use('/api/internal', internalRoutes);
 
 app.listen(port, () => {
   console.log(`RescueSync server listening on port ${port}`);
