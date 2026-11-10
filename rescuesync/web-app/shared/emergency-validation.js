@@ -13,12 +13,12 @@
 
 export const EMERGENCY_TYPE_VALUES = ['inundacion', 'incendio', 'terremoto', 'otro'];
 export const SEVERITY_VALUES = ['baja', 'media', 'alta', 'critica'];
-export const EMERGENCY_STATUS_VALUES = [
-  'registrada',
-  'convocatoria_abierta',
-  'convocatoria_cerrada',
-];
-export const OFERTA_STATUS_VALUES = ['registrada', 'retirada'];
+// Los estados viven en workflow.js (fuente única del ciclo); estos nombres se
+// mantienen por compatibilidad con quienes ya los importan desde acá.
+export {
+  EMERGENCY_STATES as EMERGENCY_STATUS_VALUES,
+  OFERTA_STATES as OFERTA_STATUS_VALUES,
+} from './workflow.js';
 
 export const AFFECTED_ZONE_MIN_LENGTH = 3;
 export const AFFECTED_ZONE_MAX_LENGTH = 200;

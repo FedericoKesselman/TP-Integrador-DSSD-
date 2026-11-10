@@ -81,9 +81,11 @@ export async function startCase(session, variables) {
 }
 
 // Completa la tarea humana pendiente (estado ready) con ese nombre dentro del
-// caso: la toma para el usuario de la sesión y la ejecuta. Devuelve false si el
-// caso no tiene esa tarea pendiente.
-export async function completeTask(session, caseId, taskName) {
+// caso: la toma para el usuario de la sesión y la ejecuta. `inputs` es el body
+// de la ejecución: tiene que coincidir con el contrato de la tarea en Bonita
+// (ej. { duracionConvocatoria: 120 } en "Publicar Convocatoria"); las tareas
+// sin contrato reciben {}. Devuelve false si el caso no tiene esa tarea pendiente.
+export async function completeTask(session, caseId, taskName, inputs = {}) {
   const headers = apiHeaders(session);
   const filters = `f=caseId=${encodeURIComponent(caseId)}&f=state=ready`;
   const listResponse = await fetch(`${BONITA_URL}/API/bpm/humanTask?c=100&p=0&${filters}`, {
@@ -107,11 +109,10 @@ export async function completeTask(session, caseId, taskName) {
   });
   if (!assign.ok) throw new Error(`No se pudo tomar "${taskName}": ${assign.status}`);
 
-  // Las tareas humanas de este proceso tienen contrato vacío, por eso el body es {}.
   const execute = await fetch(`${BONITA_URL}/API/bpm/userTask/${task.id}/execution`, {
     method: 'POST',
     headers: jsonHeaders,
-    body: '{}',
+    body: JSON.stringify(inputs),
   });
   if (!execute.ok) {
     throw new Error(
@@ -129,13 +130,15 @@ const RETRY_DELAY_MS = 300;
 // un instante en aparecer, así que se reintenta antes de darla por no pendiente.
 // Con `waitForFirst` también se reintenta la primera (recién creado el caso, su
 // primera tarea tarda un instante en quedar lista).
+// `inputs` es un mapa { [nombreDeTarea]: body } con el contrato de cada tarea
+// (las que no figuran se completan con {}).
 // Si Bonita da error se corta ahí (el error lleva `completed` con lo ya hecho).
 /* eslint-disable no-await-in-loop, no-restricted-syntax -- las tareas se completan en orden, una por una */
 export async function completePendingTasks(
   session,
   caseId,
   taskNames,
-  { waitForFirst = false } = {},
+  { waitForFirst = false, inputs = {} } = {},
 ) {
   const completed = [];
   const skipped = [];
@@ -143,12 +146,13 @@ export async function completePendingTasks(
 
   try {
     for (const taskName of taskNames) {
-      let done = await completeTask(session, caseId, taskName);
+      const taskInputs = inputs[taskName] ?? {};
+      let done = await completeTask(session, caseId, taskName, taskInputs);
       for (let i = 0; !done && justCompleted && i < RETRY_ATTEMPTS; i += 1) {
         await new Promise((resolve) => {
           setTimeout(resolve, RETRY_DELAY_MS);
         });
-        done = await completeTask(session, caseId, taskName);
+        done = await completeTask(session, caseId, taskName, taskInputs);
       }
       (done ? completed : skipped).push(taskName);
       justCompleted = done;

@@ -37,6 +37,7 @@ export async function saveLotes(emergencyId, lotes) {
     const formattedLotes = lotes.map((lote) => ({
       id: lote.id || crypto.randomUUID(),
       resourceType: lote.resourceType.trim(),
+      resourceCode: lote.resourceCode,
       unit: lote.unit?.trim() || null,
       quantityRequested: Number(lote.quantityRequested),
       notes: lote.notes?.trim() || null,
@@ -57,6 +58,7 @@ export async function saveLotes(emergencyId, lotes) {
     body: {
       lotes: lotes.map((lote) => ({
         resourceType: lote.resourceType.trim(),
+        resourceCode: lote.resourceCode,
         unit: lote.unit?.trim() || null,
         quantityRequested: Number(lote.quantityRequested),
         notes: lote.notes?.trim() || null,

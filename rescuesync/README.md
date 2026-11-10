@@ -1,9 +1,12 @@
 # RescueSync
 
 Plataforma de coordinación de respuesta ante desastres — TP Integrador de
-DSSD, 2026. Ver [`roadmapfase2.md`](./roadmapfase2.md) para el plan de
-trabajo de la Entrega 2 y [`../CLAUDE.md`](../CLAUDE.md) para convenciones
-del proyecto.
+DSSD, 2026. El plan vigente es [`roadmapfase5.md`](./roadmapfase5.md)
+(Entrega 5: ciclo completo orquestado por Bonita; ahí está el estado de cada
+tarea y la leyenda `[ ]`/`[~]`/`[x]`). Planes anteriores:
+[`roadmapfase2.md`](./roadmapfase2.md). Convenciones del proyecto en
+[`../CLAUDE.md`](../CLAUDE.md); contratos de la API en
+[`docs/api-contracts.md`](./docs/api-contracts.md).
 
 ## Requisitos
 
@@ -32,9 +35,13 @@ docker compose up -d postgres server
 ```
 
 Copiar el valor que imprime `openssl rand -hex 32` en
-`server/.env` después de `BONITA_NOTIFICATION_TOKEN=`. La copia de
-`.env.example` se hace solo la primera vez: no volver a ejecutarla después de
-completar el `.env`, porque sobrescribe el token local.
+`server/.env` después de `BONITA_INTEGRATION_KEY=` (clave que Bonita manda en
+el header `X-Integration-Key` a `/api/internal/*`; sin ella esos endpoints
+responden `503`). Completar también `SN_INTEGRATION_USERNAME` /
+`SN_INTEGRATION_PASSWORD` (cuenta de integración del Sistema Nacional, usada
+solo por "Mi inventario"). La copia de `.env.example` se hace solo la primera
+vez: no volver a ejecutarla después de completar el `.env`, porque lo
+sobrescribe.
 
 Confirmar en los logs: `Postgres connection established` y
 `RescueSync server listening on port 4000`.
@@ -48,15 +55,29 @@ npm install
 npm run migrate:up
 ```
 
+La migración de Entrega 5 (`1793000000000_e5-ciclo-completo.sql`) **borra los
+lotes sin `resource_code`** y devuelve a `registrada` las emergencias que se
+quedan sin lotes (ver [`MIGRATIONS.md`](./web-app/server/MIGRATIONS.md)).
+
+**Tests del backend** (desde `web-app/server`, con Postgres levantado; usan un
+esquema temporal y no tocan los datos de la app, con Bonita y SN simulados):
+
+```bash
+npm test            # notificaciones + ciclo completo
+npm run test:sn     # contra el Sistema Nacional real (SN_TEST_URL, default http://localhost:5000); se saltea si no responde
+```
+
 **2. Bonita Studio (antes de usar login o crear emergencias)**
 
 Bonita vive en otro repositorio, pero debe estar levantado junto con el
 backend porque el server valida los usuarios e inicia los casos del proceso.
-Cada integrante debe tener un `BONITA_NOTIFICATION_TOKEN` local en
-`web-app/server/.env` (también se conserva en
-`~/.rescuesync/bonita-notification-token`). Con PostgreSQL y el backend ya
+Cada integrante debe tener un `BONITA_INTEGRATION_KEY` local en
+`web-app/server/.env`. ⚠️ El script `start-studio.sh` y `bonita/README.md`
+todavía describen el mecanismo anterior (`BONITA_NOTIFICATION_TOKEN`); se
+actualizan en E5-32/E5-91 del roadmap, cuando Bonita pase a usar la clave de
+integración como parámetro del proceso. Con PostgreSQL y el backend ya
 levantados, guardar el trabajo, cerrar Bonita Studio y su runtime e iniciar
-siempre mediante el script desde la raíz del repositorio:
+mediante el script desde la raíz del repositorio:
 
 ```bash
 sh rescuesync/bonita/scripts/start-studio.sh

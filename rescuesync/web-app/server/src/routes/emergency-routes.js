@@ -1,6 +1,9 @@
 import { Router } from 'express';
 
+import { restoreSeleccion, saveSeleccion } from '../adjudicaciones/adjudicaciones-repository.js';
 import { completePendingTasks, startCase } from '../bonita/bonita-client.js';
+import { decide } from '../decisiones/decision-service.js';
+import { createDomainError, isUuid, sendError } from '../errors.js';
 import {
   getEmergencyById,
   insertEmergency,
@@ -16,11 +19,14 @@ import {
 import { requireRole, requireSession } from '../middleware/auth-middleware.js';
 import {
   createOfertaForEmergency,
+  getEjecucionStatus,
   listOwnOfertasForEmergency,
 } from '../ofertas/ofertas-repository.js';
 import { validateEmergencyPayload } from '../validate-emergency.js';
 import { validateLotesPayload } from '../validate-lote.js';
 import { validateOfertaPayload } from '../validate-oferta.js';
+import { listOfertasWithValidation } from '../validaciones/validaciones-repository.js';
+import { CONVOCATORIA_DURACION, DECISION_CAMINOS, validateDuracionMinutos } from '../workflow.js';
 
 const router = Router();
 
@@ -50,7 +56,7 @@ router.post('/', requireRole('operador_municipal'), async (req, res) => {
   }
 
   try {
-    const emergency = await insertEmergency(req.body);
+    const emergency = await insertEmergency(req.body, req.session.username);
     try {
       const caseId = await startCase(req.session.bonita, {
         emergencyID: emergency.id,
@@ -151,8 +157,24 @@ router.get('/:emergencyId/lotes', async (req, res) => {
 // el reloj de la convocatoria) van juntos: si Bonita no avanza, se revierte.
 router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), async (req, res) => {
   const { emergencyId } = req.params;
+
+  // La duración de la ventana (minutos) la elige el coordinador; si no viene se
+  // usa el valor sugerido. Viaja a Bonita como input de "Publicar Convocatoria".
+  const duracionMinutos = req.body?.duracionMinutos ?? CONVOCATORIA_DURACION.defaultMin;
+  const durationError = validateDuracionMinutos(duracionMinutos);
+  if (durationError) {
+    return res.status(400).json({
+      message: 'Datos inválidos',
+      errors: { duracionMinutos: durationError },
+    });
+  }
+
   try {
-    const result = await publishConvocatoriaForEmergency(emergencyId);
+    const result = await publishConvocatoriaForEmergency(
+      emergencyId,
+      duracionMinutos,
+      req.session.username,
+    );
 
     try {
       const emergency = await getEmergencyById(emergencyId);
@@ -161,6 +183,7 @@ router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), a
         req.session.bonita,
         emergency.bonitaCaseId,
         COORDINATOR_TASKS,
+        { inputs: { 'Publicar Convocatoria': { duracionConvocatoria: duracionMinutos } } },
       );
       if (!completed.includes('Publicar Convocatoria')) {
         throw new Error(
@@ -190,6 +213,170 @@ router.post('/:emergencyId/convocatoria', requireRole('coordinador_regional'), a
   }
 });
 
+// GET /api/emergencies/:emergencyId/ofertas — ofertas con su perfil de validación y la
+// cobertura por lote (vista del coordinador)
+router.get('/:emergencyId/ofertas', requireRole('coordinador_regional'), async (req, res) => {
+  try {
+    return res.json(await listOfertasWithValidation(req.params.emergencyId));
+  } catch (error) {
+    return sendError(res, error, 'No se pudieron obtener las ofertas.');
+  }
+});
+
+// GET /api/emergencies/:emergencyId/ofertas/validadas — solo ofertas validadas, con perfil y
+// cobertura (vista del municipio para adjudicar)
+router.get(
+  '/:emergencyId/ofertas/validadas',
+  requireRole('operador_municipal'),
+  async (req, res) => {
+    try {
+      return res.json(
+        await listOfertasWithValidation(req.params.emergencyId, { soloValidadas: true }),
+      );
+    } catch (error) {
+      return sendError(res, error, 'No se pudieron obtener las ofertas validadas.');
+    }
+  },
+);
+
+// POST /api/emergencies/:emergencyId/decision — el coordinador decide cómo seguir cuando no
+// se cubrieron todos los lotes: continuar | reabrir | reformular. Completa "Decidir como
+// Continuar" en Bonita con `camino` y aplica el efecto (ver docs/api-contracts.md).
+router.post('/:emergencyId/decision', requireRole('coordinador_regional'), async (req, res) => {
+  const { camino } = req.body ?? {};
+  if (!DECISION_CAMINOS.includes(camino)) {
+    return res.status(400).json({
+      message: 'Datos inválidos',
+      errors: { camino: `camino debe ser uno de: ${DECISION_CAMINOS.join(', ')}.` },
+    });
+  }
+
+  // La duración solo aplica al reabrir (nueva ventana).
+  let duracionMinutos = null;
+  if (camino === 'reabrir') {
+    duracionMinutos = req.body.duracionMinutos ?? CONVOCATORIA_DURACION.defaultMin;
+    const durationError = validateDuracionMinutos(duracionMinutos);
+    if (durationError) {
+      return res.status(400).json({
+        message: 'Datos inválidos',
+        errors: { duracionMinutos: durationError },
+      });
+    }
+  }
+
+  try {
+    const result = await decide({
+      emergencyId: req.params.emergencyId,
+      camino,
+      duracionMinutos,
+      session: req.session.bonita,
+      changedBy: req.session.username,
+    });
+    return res.json(result);
+  } catch (error) {
+    return sendError(res, error, 'No se pudo aplicar la decisión.');
+  }
+});
+
+// POST /api/emergencies/:emergencyId/adjudicacion — el municipio elige qué ofertas validadas
+// adjudicar. Guarda la selección y completa "Adjudicar Ofertas" en Bonita; si Bonita falla,
+// revierte. Las ofertas solo cambian de estado cuando el SN confirma el compromiso.
+router.post('/:emergencyId/adjudicacion', requireRole('operador_municipal'), async (req, res) => {
+  const { emergencyId } = req.params;
+  const { ofertaIds } = req.body ?? {};
+  if (!Array.isArray(ofertaIds) || ofertaIds.length === 0 || !ofertaIds.every(isUuid)) {
+    return res.status(400).json({
+      message: 'Datos inválidos',
+      errors: { ofertaIds: 'Elegí al menos una oferta (lista de ids).' },
+    });
+  }
+
+  try {
+    const emergency = await getEmergencyById(emergencyId);
+    if (!emergency) throw createDomainError('Emergencia no encontrada.', 404);
+    if (!emergency.bonitaCaseId) {
+      throw createDomainError('La emergencia no tiene caso en Bonita.', 409);
+    }
+
+    const { previousOfertaIds } = await saveSeleccion(emergencyId, ofertaIds);
+
+    try {
+      const { completed } = await completePendingTasks(req.session.bonita, emergency.bonitaCaseId, [
+        'Adjudicar Ofertas',
+      ]);
+      if (completed.length === 0) throw new Error('"Adjudicar Ofertas" no estaba pendiente.');
+    } catch (bonitaError) {
+      console.error(`Adjudicación de ${emergencyId} revertida:`, bonitaError);
+      await restoreSeleccion(emergencyId, previousOfertaIds);
+      throw createDomainError(
+        'No se pudo adjudicar en Bonita; la selección no se guardó, reintentá.',
+        502,
+      );
+    }
+
+    return res.json({ emergencyId, status: emergency.status, ofertaIds: [...new Set(ofertaIds)] });
+  } catch (error) {
+    return sendError(res, error, 'No se pudo registrar la adjudicación.');
+  }
+});
+
+// POST /api/emergencies/:emergencyId/cierre-ejecucion — el coordinador confirma el cierre de la
+// ejecución, solo si todas las ofertas adjudicadas ya están finalizadas. Completa "Confirmar
+// cierre de ejecución" en Bonita; el cambio de estado a `finalizada` lo hace Bonita después.
+router.post(
+  '/:emergencyId/cierre-ejecucion',
+  requireRole('coordinador_regional'),
+  async (req, res) => {
+    const { emergencyId } = req.params;
+    try {
+      const emergency = await getEmergencyById(emergencyId);
+      if (!emergency) throw createDomainError('Emergencia no encontrada.', 404);
+      if (!emergency.bonitaCaseId) {
+        throw createDomainError('La emergencia no tiene caso en Bonita.', 409);
+      }
+
+      const ejecucion = await getEjecucionStatus(emergencyId);
+      if (ejecucion.status !== 'en_ejecucion') {
+        throw createDomainError(
+          `El cierre solo se confirma con la emergencia en ejecución (estado actual: "${ejecucion.status}").`,
+          409,
+        );
+      }
+      if (ejecucion.pendientes.length > 0) {
+        throw createDomainError(
+          'Todavía hay ONGs que no marcaron su actividad como finalizada.',
+          409,
+          {
+            detalle: { pendientes: ejecucion.pendientes },
+          },
+        );
+      }
+
+      try {
+        const { completed } = await completePendingTasks(
+          req.session.bonita,
+          emergency.bonitaCaseId,
+          ['Confirmar cierre de ejecución'],
+        );
+        if (completed.length === 0) {
+          throw new Error('"Confirmar cierre de ejecución" no estaba pendiente.');
+        }
+      } catch (bonitaError) {
+        console.error(`Cierre de ejecución de ${emergencyId} no avanzó:`, bonitaError);
+        throw createDomainError('No se pudo confirmar el cierre en Bonita; reintentá.', 502);
+      }
+
+      return res.json({
+        emergencyId,
+        status: emergency.status,
+        finalizadas: ejecucion.finalizadas,
+      });
+    } catch (error) {
+      return sendError(res, error, 'No se pudo confirmar el cierre de ejecución.');
+    }
+  },
+);
+
 // POST /api/emergencies/:emergencyId/ofertas — alta por parte de la ONG logueada
 router.post('/:emergencyId/ofertas', requireRole('representante_ong'), async (req, res) => {
   const errors = validateOfertaPayload(req.body);
@@ -216,10 +403,7 @@ router.post('/:emergencyId/ofertas', requireRole('representante_ong'), async (re
 // GET /api/emergencies/:emergencyId/ofertas/mine — ofertas de la ONG logueada
 router.get('/:emergencyId/ofertas/mine', requireRole('representante_ong'), async (req, res) => {
   try {
-    const ofertas = await listOwnOfertasForEmergency(
-      req.params.emergencyId,
-      req.session.ongRef,
-    );
+    const ofertas = await listOwnOfertasForEmergency(req.params.emergencyId, req.session.ongRef);
     return res.json(ofertas);
   } catch (error) {
     console.error(error);

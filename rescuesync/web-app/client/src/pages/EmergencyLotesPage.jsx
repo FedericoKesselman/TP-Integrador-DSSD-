@@ -257,13 +257,18 @@ function EmergencyLotesPage() {
             const category = RESOURCE_CATEGORIES.find((cat) =>
               cat.resources.some(
                 (resource) =>
-                  resource.label === lote.resourceType || resource.id === lote.resourceType,
+                  resource.id === lote.resourceCode ||
+                  resource.label === lote.resourceType ||
+                  resource.id === lote.resourceType,
               ),
             );
             if (!category) return;
 
             const resource = category.resources.find(
-              (item) => item.label === lote.resourceType || item.id === lote.resourceType,
+              (item) =>
+                item.id === lote.resourceCode ||
+                item.label === lote.resourceType ||
+                item.id === lote.resourceType,
             );
             if (!rebuilt[category.id]) rebuilt[category.id] = {};
             rebuilt[category.id][resource.id] = {
@@ -406,6 +411,7 @@ function EmergencyLotesPage() {
           .map((res) => ({
               categoryId: cat.id,
               resourceType: res.label,
+              resourceCode: res.id,
               quantityRequested: catState[res.id].qty ?? res.defaultQty,
               unit: res.unit,
               notes: catState[res.id].notes ?? '',

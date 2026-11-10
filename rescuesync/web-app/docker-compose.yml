@@ -6,6 +6,9 @@ services:
       # comentario en server/Dockerfile.
       context: .
       dockerfile: server/Dockerfile
+    # Desarrollo: recarga con `node --watch` (la imagen de producción arranca
+    # con `npm start`; ver server/Dockerfile).
+    command: npm run dev
     env_file:
       - ./server/.env
     ports:

@@ -11,6 +11,15 @@ export function validateLoteItem(lote) {
     errors.resourceType = 'El tipo de recurso es obligatorio.';
   }
 
+  // Código del catálogo (ej. "paramedicos"): es lo que entiende el Sistema Nacional.
+  if (
+    !lote.resourceCode ||
+    typeof lote.resourceCode !== 'string' ||
+    !/^[a-z0-9-]+$/.test(lote.resourceCode)
+  ) {
+    errors.resourceCode = 'El código del recurso es obligatorio.';
+  }
+
   const quantity = Number(lote.quantityRequested);
   if (!Number.isInteger(quantity) || quantity <= 0) {
     errors.quantityRequested = 'La cantidad debe ser un número entero mayor a 0.';
