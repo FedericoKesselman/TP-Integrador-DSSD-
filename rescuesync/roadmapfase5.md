@@ -64,6 +64,69 @@ siempre que **sus dependencias estén tildadas**.
     tiene el borrador. Los apartados por componente son las tareas
     E5-81 a E5-85.
 
+### Protocolo de uso con el asistente
+
+Cada integrante trabaja con su asistente de IA, que lee este archivo y lo
+mantiene actualizado. Una tarea tiene tres estados:
+
+- **Libre:** `[ ]` y "Tomada por" vacío.
+- **En curso:** `[ ]` y "Tomada por" con nombre y fecha.
+- **Hecha:** `[x]`; "Tomada por" conserva el nombre.
+
+**1. Elegir tarea.** El asistente propone la tarea siguiendo este orden:
+
+1. Solo tareas **libres**, con **todas** las de "Necesita" en `[x]`
+   (incluidas las dependencias transitivas).
+2. Primero P1, después P2 y P3.
+3. Si es una tarea de Bonita (E5-30 a E5-40), solo si **no hay otra de
+   Bonita en curso**.
+4. Entre las que cumplen todo lo anterior, preferir la que **desbloquea más
+   tareas** o la del camino crítico (sección 8).
+
+El asistente responde con la tarea elegida y una línea de por qué. La decisión
+final es de quien la va a hacer.
+
+**2. Tomar la tarea.** Antes de empezar:
+
+1. `git pull` en `main`.
+2. Volver a mirar que la tarea siga libre y que sus dependencias estén en
+   `[x]`.
+3. Completar "Tomada por" (nombre y fecha) en esa línea y nada más. Commit
+   chico a `main` y push.
+4. Si el push es rechazado: `git pull --rebase` y volver al paso 2. Si alguien
+   la tomó en el medio, elegir otra.
+
+**3. Terminar la tarea.** Solo cuando se cumple su definición de hecho y se
+probó con las tareas de "Se prueba con":
+
+1. Tildar `[x]` en `main` con un commit chico que toque solo esa línea.
+2. Anotar las **horas reales** en la bitácora (E5-90).
+3. Completar el apartado del informe que le corresponde (regla 11).
+
+**4. Soltar una tarea.** Si alguien no puede seguir, borra su nombre de
+"Tomada por", deja en la rama lo avanzado y avisa al grupo. La tarea vuelve a
+estar libre.
+
+**5. Si algo del contrato no cierra,** el asistente avisa y no inventa
+formatos (regla 1).
+
+**Mensaje para elegir tarea** (pegarlo en el chat del asistente junto con
+este archivo):
+
+> Leé `rescuesync/roadmapfase5.md` (secciones 1 a 5 y 7). Decime qué tarea
+> me conviene tomar ahora, siguiendo el paso 1 del protocolo de uso:
+> solo tareas libres con dependencias tildadas, primero P1, y respetando la
+> regla de una sola tarea de Bonita a la vez. Dame la tarea elegida y una
+> línea de por qué.
+
+**Mensaje para tomarla y marcar el archivo** (después de elegir):
+
+> Voy a hacer la tarea `<TAREA>`. Seguí el paso 2 del protocolo: `git pull`,
+> verificá que siga libre y que sus dependencias estén tildadas, completá
+> "Tomada por" con mi nombre y la fecha de hoy, y hacé un commit chico a
+> `main` que toque solo esa línea. Después seguí con el mensaje inicial de
+> abajo.
+
 **Mensaje inicial sugerido para tu agente** (reemplazar `<TAREA>`):
 
 > Leé `CLAUDE.md`, `rescuesync/roadmapfase5.md` (secciones 1 a 5) y
