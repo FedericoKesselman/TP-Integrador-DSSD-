@@ -5,6 +5,7 @@ import session from 'express-session';
 
 import pool from './db.js';
 import authRoutes from './routes/auth-routes.js';
+import dashboardRoutes from './routes/dashboard-routes.js';
 import emergencyRoutes from './routes/emergency-routes.js';
 import internalRoutes from './routes/internal-routes.js';
 import inventarioRoutes from './routes/inventario-routes.js';
@@ -23,6 +24,7 @@ app.use('/api/emergencies', emergencyRoutes);
 app.use('/api/ofertas', ofertaRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/inventario', inventarioRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 // Rutas de Bonita: sin sesión de usuario, con X-Integration-Key.
 app.use('/api/internal', internalRoutes);
 

@@ -585,6 +585,35 @@ es mantenimiento del stock, no un paso del ciclo.
   SN; `502` si el SN no responde (el primer pedido puede tardar ~1 minuto por el
   arranque en frío de Render; el timeout es de 90 s).
 
+## Dashboard
+
+`GET /api/dashboard/indicadores` — rol `auditor` (`401` sin sesión, `403` otro rol).
+Solo datos propios de Postgres; no usa Bonita. Cuentan las ofertas `adjudicada` y
+`finalizada`. El mes de un suministro es el de `ofertas.updated_at` (`YYYY-MM`).
+
+```json
+{
+  "suministrosMovilizados": [{ "mes": "2026-11", "recursoCodigo": "raciones", "cantidad": 180 }],
+  "resolucionConsorcios": { "emergenciasFinalizadas": 2, "conConsorcio": 1, "porcentaje": 50 },
+  "estadoProyectos": [
+    {
+      "estado": "finalizada",
+      "cantidad": 2,
+      "emergencias": [
+        { "id": "uuid", "type": "incendio", "severity": "alta", "province": "Buenos Aires",
+          "municipality": "La Plata", "createdAt": "ISO" }
+      ]
+    }
+  ],
+  "coberturaLotes": { "lotes": 3, "promedioPorcentaje": 50 }
+}
+```
+
+- `conConsorcio`: emergencias finalizadas con al menos una oferta vigente de 2 o más ONGs.
+- `coberturaLotes`: por lote, cantidad cubierta (tope = pedida) / `quantity_requested`,
+  promediada sobre todos los lotes (los sin cobertura cuentan 0). Porcentajes con 1 decimal.
+- Sin datos: listas vacías y porcentajes en 0.
+
 ## Datos geográficos
 
 El cliente consulta directamente la API pública Georef (datos.gob.ar, permite CORS):
