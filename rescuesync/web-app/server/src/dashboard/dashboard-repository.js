@@ -6,15 +6,20 @@ const OFERTAS_VIGENTES = "('adjudicada', 'finalizada')";
 const round1 = (n) => Math.round(Number(n) * 10) / 10;
 
 // Indicadores del dashboard con datos propios (roadmapfase5.md 5.5).
-// El mes de un suministro es el de `ofertas.updated_at` (último cambio: la adjudicación).
+// El mes de un suministro es el de `adjudicaciones.created_at`. Una oferta adjudicada/finalizada
+// tiene una sola fila (UNIQUE emergency_id+oferta_id) y ya no se borra tras confirmar el compromiso;
+// si hubiera varias, se usaría la más reciente (MAX).
 export async function getIndicadores() {
   const [suministros, consorcios, estados, cobertura] = await Promise.all([
     pool.query(
-      `SELECT to_char(date_trunc('month', o.updated_at), 'YYYY-MM') AS mes,
+      `SELECT to_char(date_trunc('month', a.adjudicada_at), 'YYYY-MM') AS mes,
               l.resource_code AS recurso_codigo,
               SUM(ol.quantity_offered)::int AS cantidad
        FROM oferta_lotes ol
        JOIN ofertas o ON o.id = ol.oferta_id
+       JOIN (
+         SELECT oferta_id, MAX(created_at) AS adjudicada_at FROM adjudicaciones GROUP BY oferta_id
+       ) a ON a.oferta_id = o.id
        JOIN lotes l ON l.id = ol.lote_id
        WHERE o.status IN ${OFERTAS_VIGENTES}
        GROUP BY 1, 2

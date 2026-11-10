@@ -589,7 +589,10 @@ es mantenimiento del stock, no un paso del ciclo.
 
 `GET /api/dashboard/indicadores` — rol `auditor` (`401` sin sesión, `403` otro rol).
 Solo datos propios de Postgres; no usa Bonita. Cuentan las ofertas `adjudicada` y
-`finalizada`. El mes de un suministro es el de `ofertas.updated_at` (`YYYY-MM`).
+`finalizada`. El mes de un suministro es el de la fecha de adjudicación de la oferta
+(`adjudicaciones.created_at`, `YYYY-MM`; si hubiera varias, la más reciente). Es la fecha en
+que el municipio eligió la oferta, no cambia al finalizarla. En `estadoProyectos` solo
+aparecen los estados que tienen emergencias.
 
 ```json
 {

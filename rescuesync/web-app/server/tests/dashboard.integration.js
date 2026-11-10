@@ -81,6 +81,11 @@ try {
         status,
       ])
     )[0];
+    if (['adjudicada', 'finalizada'].includes(status))
+      await q(
+        "INSERT INTO adjudicaciones (emergency_id, oferta_id, created_at) VALUES ($1, $2, '2026-09-15T12:00:00Z')",
+        [eid, id],
+      );
     // eslint-disable-next-line no-restricted-syntax
     for (const o of ongs)
       // eslint-disable-next-line no-await-in-loop
@@ -107,8 +112,11 @@ try {
   await oferta(e2, 'finalizada', [a], [[l2, 50]]);
   await oferta(e3, 'registrada', [a, b], [[l3, 10]]); // no cuenta
 
+  // Tocar una oferta ya adjudicada (ej. finalizarla meses después) no mueve el mes del suministro.
+  await q("UPDATE ofertas SET updated_at = '2026-11-10T09:00:00Z' WHERE status = 'finalizada'");
+
   const data = await (await get('auditor')).json();
-  const mes = new Date().toISOString().slice(0, 7);
+  const mes = '2026-09';
   assert.deepEqual(data.suministrosMovilizados, [
     { mes, recursoCodigo: 'raciones', cantidad: 180 },
   ]);
