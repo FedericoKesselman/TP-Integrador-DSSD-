@@ -352,7 +352,7 @@ planificación; las horas reales van a la bitácora E5-90).
 
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
 |---|---|---|---|---|---|---|
-| [ ] E5-01 | Crear la **base del informe final** en un documento compartido: capítulos, un apartado por componente con plantilla (qué hace, qué rol cumple, cómo se conecta, decisiones y desvíos), bibliografía compartida y convenciones de figuras | 2 | — | — | P1 | |
+| [x] E5-01 | Crear la **base del informe final** en un documento compartido: capítulos, un apartado por componente con plantilla (qué hace, qué rol cumple, cómo se conecta, decisiones y desvíos), bibliografía compartida y convenciones de figuras | 2 | — | — | P1 | Agustín 12/11 |
 | [x] E5-02 | Pasar las secciones 4 y 5 de este archivo a `docs/api-contracts.md` (fuente única), incluidos los estados, la whitelist y los tipos de aviso | 1.5 | — | — | P1 | Joaquín 10/11 |
 | [x] E5-03 | Pedir al ayudante **confirmación escrita** (mail o plataforma) de que el dashboard va dentro de la web-app | 0.25 | — | — | P1 | Ignacio 10/11 · confirmado: Julian (ayudante de la materia) nos lo confirmó en una consulta virtual por Meet. **Fue verbal: no hay constancia escrita** (mail ni plataforma) |
 | [ ] E5-04 | Borrar las 17 ramas remotas ya mergeadas y agregar `cookies.txt` y `bonita-cookies.txt` al `.gitignore` del repo de Bonita | 0.5 | — | — | P3 | |
@@ -384,10 +384,10 @@ planificación; las horas reales van a la bitácora E5-90).
 
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
 |---|---|---|---|---|---|---|
-| [ ] E5-30 | Preparación: parámetros del proceso (5.4), variables nuevas, borrar la tarea huérfana "Cópia de Informar Cierre Y Liberar Cursos", crear el README del repo de Bonita | 3 | E5-02 | — | P1 | Joaquín 10/11 |
-| [ ] E5-31 | Timer parametrizable: input `duracionConvocatoria` en el contrato de "Publicar Convocatoria", operación que lo guarda en la variable, y timer que la lee (en minutos) | 2.5 | E5-30 | E5-18, E5-51 | P1 | |
-| [ ] E5-32 | Conectores de notificaciones de `master` adaptados a la clave de integración y a las URLs por parámetro (`notificarConvocatoria`, `cierreConvocatoria`) | 2 | E5-30 | E5-12 | P1 | |
-| [ ] E5-33 | "Notificar Cierre de Convocatoria a ONGS": `PATCH` estado `convocatoria_cerrada` y aviso. "Obtener Ofertas": `GET …/consolidado` guardado en la variable | 3.5 | E5-30 | E5-13, E5-14 | P1 | |
+| [x] E5-30 | Preparación: parámetros del proceso (5.4), variables nuevas, borrar la tarea huérfana "Cópia de Informar Cierre Y Liberar Cursos", crear el README del repo de Bonita | 3 | E5-02 | — | P1 | Joaquín 10/11 · Agustín 12/11 |
+| [x] E5-31 | Timer parametrizable: input `duracionConvocatoria` en el contrato de "Publicar Convocatoria", operación que lo guarda en la variable, y timer que la lee (en minutos) | 2.5 | E5-30 | E5-18, E5-51 | P1 | Agustín 12/11 |
+| [x] E5-32 | Conectores de notificaciones de `master` adaptados a la clave de integración y a las URLs por parámetro (`notificarConvocatoria`, `cierreConvocatoria`) | 2 | E5-30 | E5-12 | P1 | Agustín 12/11 |
+| [ ] E5-33 | "Notificar Cierre de Convocatoria a ONGS": `PATCH` estado `convocatoria_cerrada` y aviso. "Obtener Ofertas": `GET …/consolidado` guardado en la variable | 3.5 | E5-30 | E5-13, E5-14 | P1 | Pendiente: falta agregar el `PATCH` de estado antes del aviso |
 | [ ] E5-34 | "Validar Ofertas": login al SN (`snToken`), `POST /validaciones`, operación que setea `todosLosLotesCubiertos`, `POST …/validaciones` a la web-app. Timeouts de 90 s por el arranque en frío de Render | 5 | E5-33 | E5-15, E5-05 | P1 | |
 | [ ] E5-35 | "Decidir como Continuar": contrato con input `camino` (con restricción de valores) y operación que lo copia a `caminoASeguir` | 3 | E5-34 | E5-17 | P1 | |
 | [ ] E5-36 | Adjudicación y compromiso: reordenar el flujo (compromiso antes de notificar), "Registrar Compromiso de Recursos de ONGS" (`GET …/adjudicacion`, login SN, `POST /compromisos`), compuerta "¿Compromiso confirmado?", "Registrar Compromiso Confirmado" e "Informar Compromiso Fallido" (vuelve a "Adjudicar Ofertas"). El conector debe tolerar el `409` | 7 | E5-34 | E5-19, E5-05 | P1 | |
