@@ -617,6 +617,80 @@ aparecen los estados que tienen emergencias.
   promediada sobre todos los lotes (los sin cobertura cuentan 0). Porcentajes con 1 decimal.
 - Sin datos: listas vacías y porcentajes en 0.
 
+### GET /api/dashboard/tiempos-etapas
+
+Rol `auditor` (`401` sin sesión, `403` otro rol). Datos de la API REST de Bonita: los
+consulta el backend con la sesión de Bonita del propio auditor logueado
+(`req.session.bonita`), solo `GET`; el navegador no habla con Bonita. Requiere que el
+usuario auditor tenga perfil Administrador en Bonita (confirmado por el profesor en consulta
+del 13/11).
+
+Query opcional: `desde` y `hasta` (`YYYY-MM-DD`, inclusive); filtran por fecha de inicio del
+caso. `400` si el formato es inválido o `desde` > `hasta`.
+
+Respuesta `200`:
+
+```json
+{
+  "periodo": { "desde": "2026-11-01", "hasta": "2026-11-30" },
+  "casosAnalizados": 4,
+  "etapas": [
+    { "etapa": "registro_publicacion", "casos": 3, "promedioMinutos": 3.5,
+      "minMinutos": 2.1, "maxMinutos": 5 }
+  ]
+}
+```
+
+`periodo.desde` y `periodo.hasta` son `null` si no se pasaron. Etapas, siempre las 5 y en
+este orden:
+
+- `registro_publicacion`: "Registrar Emergencia" → "Publicar Convocatoria".
+- `ventana_ofertas`: "Publicar Convocatoria" → "Notificar Cierre de Convocatoria a ONGS".
+- `validacion_adjudicacion`: "Validar Ofertas" → "Adjudicar Ofertas".
+- `ejecucion`: "Etapa Ejecución" → "Liberar recursos".
+- `total`: inicio → fin del caso (solo casos terminados).
+
+Reglas:
+
+- Un caso cuenta en una etapa solo si tiene las dos puntas. Si una tarea aparece varias
+  veces (reabrir/reformular) se toma la primera aparición de la tarea de inicio y la última
+  de la de fin.
+- Minutos con 1 decimal. Etapa sin casos: `casos` 0 y `promedioMinutos`/`minMinutos`/
+  `maxMinutos` en `null`.
+- El filtro por recurso no aplica (Bonita no conoce recursos).
+
+Errores (siempre `{ "message": "..." }`):
+
+- `401` si Bonita responde `401` con la sesión del usuario: `"Tu sesión de Bonita venció.
+  Volvé a iniciar sesión."`
+- `502` si Bonita responde `403`: `"Bonita rechazó la consulta: el usuario auditor necesita
+  perfil Administrador en Bonita."`
+- `502` si Bonita no responde.
+
+Fuente de las fechas: los casos salen de `bpm/case` (abiertos) y `bpm/archivedCase`
+(terminados; `end_date` solo si `state` es `completed`) de todas las versiones del proceso;
+las tareas, de `bpm/archivedActivity` con `state=completed`, usando `reached_state_date`.
+Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONGS").
+
+### GET /api/dashboard/export
+
+Rol `auditor`. Query: `formato=json|csv` (obligatorio), `desde` y `hasta` opcionales (mismas
+reglas que en `tiempos-etapas`), `dataset` (obligatorio solo con `csv`): `suministros` |
+`estado-proyectos` | `tiempos-etapas`. `400` si falta o no es válido.
+
+- `json`: `{ "generadoAt": "ISO", "periodo": {...}, "indicadores": <igual que
+  /indicadores>, "tiemposEtapas": <igual que /tiempos-etapas> | null, "avisos": [] }`. Si
+  Bonita falla, `tiemposEtapas` = `null` y se agrega un aviso en `avisos`; responde `200`
+  igual.
+- `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma.
+  - `suministros`: `mes,recursoCodigo,cantidad`
+  - `estado-proyectos`: `estado,id,type,severity,province,municipality,createdAt`
+  - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos` (si Bonita falla
+    con este dataset: `502`).
+
+Headers: `Content-Disposition: attachment`; nombre
+`rescuesync-dashboard-<dataset|completo>-<YYYY-MM-DD>.<ext>`.
+
 ## Datos geográficos
 
 El cliente consulta directamente la API pública Georef (datos.gob.ar, permite CORS):
