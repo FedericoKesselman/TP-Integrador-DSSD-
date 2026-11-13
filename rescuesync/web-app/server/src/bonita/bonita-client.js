@@ -41,6 +41,12 @@ function apiHeaders(session) {
   };
 }
 
+// GET a la API de Bonita con una sesión ya iniciada; devuelve la Response cruda
+// para que quien llama decida qué hacer con el status.
+export function apiGet(session, path) {
+  return fetch(`${BONITA_URL}/API/${path}`, { headers: apiHeaders(session) });
+}
+
 // Busca el id del proceso desplegado y activo con ese nombre (el id cambia en
 // cada redeploy). Si hay varias versiones, devuelve la desplegada más
 // recientemente.

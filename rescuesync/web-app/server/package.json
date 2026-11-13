@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node tests/notifications.integration.js && node tests/ciclo.integration.js && node tests/dashboard.integration.js",
+    "test": "node tests/notifications.integration.js && node tests/ciclo.integration.js && node tests/dashboard.integration.js && node tests/tiempos-etapas.js",
     "test:sn": "node tests/sn.integration.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
