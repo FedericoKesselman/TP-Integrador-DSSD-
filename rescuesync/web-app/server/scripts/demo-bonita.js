@@ -335,13 +335,11 @@ async function correrEmergencia(e, indice) {
 
     // 3. Ofertas durante la ventana. Oferta parcial: ~la mitad de cada lote (al menos 1) de los
     // dos primeros lotes; consorcio: todos los lotes, la otra ONG como asociada.
-    const itemsParcial = lotes
-      .slice(0, 2)
-      .map((l) => ({
-        loteId: l.id,
-        quantityOffered: Math.max(1, Math.floor(l.quantityRequested / 2)),
-        notes: null,
-      }));
+    const itemsParcial = lotes.slice(0, 2).map((l) => ({
+      loteId: l.id,
+      quantityOffered: Math.max(1, Math.floor(l.quantityRequested / 2)),
+      notes: null,
+    }));
     const itemsConsorcio = lotes.map((l) => ({
       loteId: l.id,
       quantityOffered: l.quantityRequested,
