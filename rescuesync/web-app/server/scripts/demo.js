@@ -19,6 +19,9 @@ const ESTADOS = [
 // Cada emergencia: datos del alta, `horas` (horas desde el alta en que ocurre cada paso del ciclo
 // después de `registrada`, en el orden de ESTADOS, hasta su estado actual), lotes y ofertas.
 // Lote: [código del catálogo, nombre, unidad, cantidad pedida].
+// `desvio` (opcional): la emergencia, ya validada, pasó por reabrir o reformular antes de seguir:
+// `{ tipo: 'reabrir' | 'reformular', horas }` con las horas de cada transición extra (reabrir:
+// validada→abierta→cerrada→validada; reformular: validada→registrada→abierta→cerrada→validada).
 // Oferta: `items` = [índice de lote, cantidad ofrecida, cantidad habilitada por el SN];
 // `horas` = cuántas horas después del alta se cargó.
 const EMERGENCIAS = [
@@ -95,6 +98,7 @@ const EMERGENCIAS = [
     estado: 'finalizada',
     duracionMin: 120,
     horas: [2, 5, 7, 80, 84, 200],
+    desvio: { tipo: 'reabrir', horas: [9, 12, 30] },
     lotes: [
       ['bomberos', 'Bomberos / Brigadistas', 'personas', 40],
       ['cisterna', 'Camiones cisterna de agua', 'vehículos', 4],
@@ -155,10 +159,11 @@ const EMERGENCIAS = [
         nivel: 'PLENO',
         rol: 'principal',
         riesgo: 'media',
-        obs: 'Carpas y colchones para 30 familias.',
+        obs: 'Carpas, colchones y generadores para el operativo completo.',
         items: [
-          [0, 30, 30],
-          [1, 90, 90],
+          [0, 40, 40],
+          [1, 120, 120],
+          [2, 4, 4],
         ],
       },
       {
@@ -241,6 +246,7 @@ const EMERGENCIAS = [
     estado: 'adjudicada',
     duracionMin: 90,
     horas: [1, 3, 5, 100],
+    desvio: { tipo: 'reformular', horas: [6, 7, 13, 16] },
     lotes: [
       ['motobombas', 'Motobombas de achique', 'unidades', 6],
       ['kits-higiene', 'Kits de higiene personal', 'kits', 200],
@@ -250,20 +256,21 @@ const EMERGENCIAS = [
       {
         ongs: ['manos-solidarias'],
         estado: 'adjudicada',
-        horas: 2,
+        horas: 9,
         nivel: 'PLENO',
         rol: 'principal',
         riesgo: 'media',
-        obs: 'Agua y kits de higiene.',
+        obs: 'Motobombas, agua y kits de higiene.',
         items: [
-          [1, 150, 150],
-          [2, 1800, 1800],
+          [0, 6, 6],
+          [1, 200, 200],
+          [2, 3000, 3000],
         ],
       },
       {
         ongs: ['rescatistas-unidos'],
         estado: 'no_seleccionada',
-        horas: 3,
+        horas: 10,
         nivel: 'APOYO',
         rol: 'apoyo',
         riesgo: 'baja',
@@ -383,6 +390,26 @@ async function insertarEmergencia(client, em, ongIds) {
   pasos.slice(1).forEach((estado, i) => {
     momento[estado] = hs(em.createdAt, em.horas[i]);
   });
+  // Transiciones del historial: la línea recta de `pasos` más el desvío (si hay) tras validada.
+  const transiciones = pasos.map((estado, i) => ({
+    de: i === 0 ? null : pasos[i - 1],
+    a: estado,
+    cuando: momento[estado],
+  }));
+  if (em.desvio) {
+    const extra =
+      em.desvio.tipo === 'reabrir'
+        ? ['convocatoria_abierta', 'convocatoria_cerrada', 'validada']
+        : ['registrada', 'convocatoria_abierta', 'convocatoria_cerrada', 'validada'];
+    const idx = transiciones.findIndex((t) => t.a === 'validada') + 1;
+    const nuevas = extra.map((a, i) => ({
+      de: i === 0 ? 'validada' : extra[i - 1],
+      a,
+      cuando: hs(em.createdAt, em.desvio.horas[i]),
+    }));
+    transiciones.splice(idx, 0, ...nuevas);
+    momento.validada = nuevas.at(-1).cuando; // la validación vigente es la última
+  }
 
   const { rows } = await client.query(
     `INSERT INTO emergencies
@@ -408,7 +435,7 @@ async function insertarEmergencia(client, em, ongIds) {
       em.phone,
       em.estado,
       pasos.length > 1 ? em.duracionMin : null,
-      pasos.length > 1 ? 1 : 0,
+      pasos.length > 1 ? 1 + (em.desvio ? 1 : 0) : 0,
       em.createdAt,
     ],
   );
@@ -416,12 +443,12 @@ async function insertarEmergencia(client, em, ongIds) {
 
   // Historial: el alta y una fila por cada transición hasta el estado actual.
   // eslint-disable-next-line no-restricted-syntax
-  for (const [i, estado] of pasos.entries()) {
+  for (const t of transiciones) {
     // eslint-disable-next-line no-await-in-loop
     await client.query(
       `INSERT INTO emergency_status_history (emergency_id, from_status, to_status, changed_by, changed_at)
        VALUES ($1, $2, $3, 'demo', $4)`,
-      [emergencyId, i === 0 ? null : pasos[i - 1], estado, momento[estado]],
+      [emergencyId, t.de, t.a, t.cuando],
     );
   }
 

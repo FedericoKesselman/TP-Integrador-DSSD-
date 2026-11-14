@@ -1,5 +1,11 @@
 // Armado del export del dashboard (contrato: api-contracts.md, Dashboard → export).
-export const DATASETS = ['suministros', 'estado-proyectos', 'tiempos-etapas', 'tiempos-por-tipo'];
+export const DATASETS = [
+  'suministros',
+  'estado-proyectos',
+  'caminos-decision',
+  'tiempos-etapas',
+  'tiempos-por-tipo',
+];
 
 // Campo CSV: null → vacío; con coma, comillas o salto de línea va entre comillas dobles.
 const campo = (v) => {
@@ -30,6 +36,15 @@ export function datasetCsv(dataset, indicadores, tiempos) {
       indicadores.estadoProyectos.flatMap((s) =>
         s.emergencias.map((e) => [s.estado, ...cols.map((k) => e[k])]),
       ),
+    );
+  }
+  if (dataset === 'caminos-decision') {
+    return toCsv(
+      ['camino', 'cantidad'],
+      ['todosCubiertos', 'continuar', 'reabrir', 'reformular'].map((k) => [
+        k,
+        indicadores.caminosDecision[k],
+      ]),
     );
   }
   if (dataset === 'tiempos-etapas') return toCsv(TIEMPOS, tiempos.etapas.map(filaTiempos));

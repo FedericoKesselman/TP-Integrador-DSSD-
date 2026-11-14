@@ -124,7 +124,13 @@ try {
   const vacio = await (await get('auditor')).json();
   assert.deepEqual(vacio.suministrosMovilizados, []);
   assert.equal(vacio.resolucionConsorcios.porcentaje, 0);
-  assert.equal(vacio.coberturaLotes.promedioPorcentaje, 0);
+  assert.deepEqual(vacio.coberturaLotes, { emergencias: 0, lotes: 0, promedioPorcentaje: null });
+  assert.deepEqual(vacio.caminosDecision, {
+    todosCubiertos: 0,
+    continuar: 0,
+    reabrir: 0,
+    reformular: 0,
+  });
 
   // Datos: E1 finalizada con consorcio (2 ONGs), E2 finalizada sin consorcio, E3 registrada.
   const q = async (sql, params) => (await pool.query(sql, params)).rows;
@@ -202,8 +208,8 @@ try {
   const estados = Object.fromEntries(data.estadoProyectos.map((s) => [s.estado, s.cantidad]));
   assert.deepEqual(estados, { finalizada: 2, registrada: 1 });
   assert.equal(data.estadoProyectos.find((s) => s.estado === 'registrada').emergencias[0].id, e3);
-  // coberturas: 100%, 50%, 0% → 50
-  assert.deepEqual(data.coberturaLotes, { lotes: 3, promedioPorcentaje: 50 });
+  // Solo cuentan las emergencias adjudicadas: E1 100% y E2 50% (el lote de E3, registrada, no).
+  assert.deepEqual(data.coberturaLotes, { emergencias: 2, lotes: 2, promedioPorcentaje: 75 });
 
   assert.deepEqual(data.periodo, { desde: null, hasta: null });
 
@@ -253,20 +259,20 @@ try {
     [50],
   );
   assert.deepEqual(resumen(await indicadores('?hasta=2026-09-29')).estados, { finalizada: 1 });
-  // Solo desde: E3 (registrada, sin cobertura).
+  // Solo desde: E3 (registrada, todavía sin adjudicar → sin cobertura final).
   assert.deepEqual(resumen(await indicadores('?desde=2026-10-01')), {
     periodo: { desde: '2026-10-01', hasta: null },
     suministros: [],
     estados: { registrada: 1 },
     finalizadas: 0,
     conConsorcio: 0,
-    lotes: 1,
-    cobertura: 0,
+    lotes: 0,
+    cobertura: null,
   });
   // Período sin emergencias: todo vacío.
   const sinDatos = await indicadores('?desde=2027-01-01&hasta=2027-01-31');
   assert.deepEqual(sinDatos.estadoProyectos, []);
-  assert.equal(sinDatos.coberturaLotes.promedioPorcentaje, 0);
+  assert.equal(sinDatos.coberturaLotes.promedioPorcentaje, null);
   // 400: formato inválido, día inexistente, desde > hasta.
   assert.equal((await get('auditor', '?desde=ayer')).status, 400);
   assert.equal((await get('auditor', '?hasta=2026-02-30')).status, 400);
@@ -431,6 +437,59 @@ try {
 
   // El servidor nunca hace login propio: solo usa la sesión del usuario.
   assert.equal(bonita.logins, 0);
+
+  // --- caminos de decisión y cobertura final (período aparte: marzo 2027) ---------------
+  const marzo = '?desde=2027-03-01&hasta=2027-03-31';
+  const enMarzo = async (status, cubiertos) => {
+    const id = await emergency(status);
+    await q(
+      "UPDATE emergencies SET created_at = '2027-03-10T12:00:00Z', validacion_resumen = $2 WHERE id = $1",
+      [id, cubiertos === undefined ? null : JSON.stringify({ todosLosLotesCubiertos: cubiertos })],
+    );
+    return id;
+  };
+  const transicion = (id, from, to) =>
+    q(
+      'INSERT INTO emergency_status_history (emergency_id, from_status, to_status) VALUES ($1,$2,$3)',
+      [id, from, to],
+    );
+  const eA = await enMarzo('adjudicada', true);
+  const eB = await enMarzo('convocatoria_abierta', false); // en curso: no cuenta
+  const eC = await enMarzo('en_ejecucion', false);
+  await enMarzo('finalizada'); // sin validacion_resumen: no cuenta en caminos
+  await oferta(eA, 'adjudicada', [a], [[await lote(eA, 'raciones', 100), 40]]);
+  await lote(eB, 'mantas', 100); // sin cubrir, pero la emergencia no está adjudicada
+  await oferta(eC, 'adjudicada', [b], [[await lote(eC, 'mantas', 50), 50]]);
+  await transicion(eA, 'validada', 'convocatoria_abierta');
+  await transicion(eA, 'convocatoria_cerrada', 'validada');
+  await transicion(eA, 'validada', 'convocatoria_abierta'); // dos reabrir en la misma emergencia
+  await transicion(eB, 'validada', 'convocatoria_abierta');
+  await transicion(eC, 'validada', 'registrada');
+  await transicion(eC, 'registrada', 'convocatoria_abierta'); // no es reabrir
+  await transicion(e1, 'validada', 'convocatoria_abierta'); // fuera de marzo
+  const dm = await indicadores(marzo);
+  assert.deepEqual(dm.coberturaLotes, { emergencias: 2, lotes: 2, promedioPorcentaje: 70 });
+  assert.deepEqual(dm.caminosDecision, {
+    todosCubiertos: 1,
+    continuar: 1,
+    reabrir: 3,
+    reformular: 1,
+  });
+  // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → ni continuar ni cubiertos.
+  assert.deepEqual((await indicadores('?desde=2026-09-01&hasta=2026-09-30')).caminosDecision, {
+    todosCubiertos: 0,
+    continuar: 0,
+    reabrir: 1,
+    reformular: 0,
+  });
+  res = await csv('caminos-decision', { sid: 'vencida' }, marzo.replace('?', '&'));
+  assert.equal(res.r.status, 200);
+  assert.equal(res.r.headers.get('content-disposition'), adjunto('caminos-decision', 'csv'));
+  assert.equal(
+    res.text,
+    'camino,cantidad\ntodosCubiertos,1\ncontinuar,1\nreabrir,3\nreformular,1\n',
+  );
+  assert.equal((await call('/export?formato=csv&dataset=caminos')).status, 400);
 
   // Bonita no responde → 502 (tiempos-etapas y csv) y aviso (export json).
   bonita.caido = true;

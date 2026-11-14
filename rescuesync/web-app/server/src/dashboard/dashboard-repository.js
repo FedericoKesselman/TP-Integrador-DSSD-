@@ -10,6 +10,9 @@ const EN_PERIODO = (col) => `${col} IN (
   WHERE ($1::date IS NULL OR (pe.created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date >= $1::date)
     AND ($2::date IS NULL OR (pe.created_at AT TIME ZONE 'America/Argentina/Buenos_Aires')::date <= $2::date))`;
 
+// Emergencias con adjudicación lograda: solo ellas cuentan para la cobertura final y los caminos.
+const ADJUDICADAS = "('adjudicada', 'en_ejecucion', 'finalizada')";
+
 const round1 = (n) => Math.round(Number(n) * 10) / 10;
 
 // Indicadores del dashboard con datos propios (roadmapfase5.md 5.5).
@@ -18,7 +21,7 @@ const round1 = (n) => Math.round(Number(n) * 10) / 10;
 // si hubiera varias, se usaría la más reciente (MAX).
 export async function getIndicadores({ desde = null, hasta = null } = {}) {
   const params = [desde, hasta];
-  const [suministros, consorcios, estados, cobertura] = await Promise.all([
+  const [suministros, consorcios, estados, cobertura, caminos] = await Promise.all([
     pool.query(
       `SELECT to_char(date_trunc('month', a.adjudicada_at), 'YYYY-MM') AS mes,
               l.resource_code AS recurso_codigo,
@@ -50,14 +53,29 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
       params,
     ),
     pool.query(
-      `SELECT l.id, l.quantity_requested,
+      `SELECT l.id, l.emergency_id, l.quantity_requested,
               LEAST(COALESCE(SUM(ol.quantity_offered) FILTER (
                 WHERE o.status IN ${OFERTAS_VIGENTES}), 0), l.quantity_requested) AS cubierta
        FROM lotes l
        LEFT JOIN oferta_lotes ol ON ol.lote_id = l.id
        LEFT JOIN ofertas o ON o.id = ol.oferta_id
-       WHERE ${EN_PERIODO('l.emergency_id')}
-       GROUP BY l.id`,
+       JOIN emergencies e ON e.id = l.emergency_id
+       WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('l.emergency_id')}
+       GROUP BY l.id, l.emergency_id`,
+      params,
+    ),
+    pool.query(
+      `SELECT
+         (SELECT count(*) FROM emergencies e WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('e.id')}
+            AND e.validacion_resumen->>'todosLosLotesCubiertos' = 'true')::int AS todos_cubiertos,
+         (SELECT count(*) FROM emergencies e WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('e.id')}
+            AND e.validacion_resumen->>'todosLosLotesCubiertos' = 'false')::int AS continuar,
+         (SELECT count(*) FROM emergency_status_history h
+          WHERE h.from_status = 'validada' AND h.to_status = 'convocatoria_abierta'
+            AND ${EN_PERIODO('h.emergency_id')})::int AS reabrir,
+         (SELECT count(*) FROM emergency_status_history h
+          WHERE h.from_status = 'validada' AND h.to_status = 'registrada'
+            AND ${EN_PERIODO('h.emergency_id')})::int AS reformular`,
       params,
     ),
   ]);
@@ -93,10 +111,17 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
     },
     estadoProyectos: [...porEstado.values()],
     coberturaLotes: {
+      emergencias: new Set(cobertura.rows.map((row) => row.emergency_id)).size,
       lotes: ratios.length,
       promedioPorcentaje: ratios.length
         ? round1((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
-        : 0,
+        : null,
+    },
+    caminosDecision: {
+      todosCubiertos: caminos.rows[0].todos_cubiertos,
+      continuar: caminos.rows[0].continuar,
+      reabrir: caminos.rows[0].reabrir,
+      reformular: caminos.rows[0].reformular,
     },
   };
 }
