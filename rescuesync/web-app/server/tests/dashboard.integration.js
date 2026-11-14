@@ -63,8 +63,24 @@ const bonitaServer = http.createServer((req, res) => {
     );
   }
   if (api === 'bpm/archivedActivity') {
+    const caso1 = f.includes('caseId=1');
+    // "Cargar ofertas" la corta el temporizador: queda abortada (solo esa tarea se pide así).
+    if (f.includes('state=aborted')) {
+      return json(
+        200,
+        caso1
+          ? [
+              {
+                name: 'Cargar ofertas (Parcial / Completa)',
+                reached_state_date: '2026-11-02 10:34:00.000',
+              },
+              { name: 'Otra tarea abortada', reached_state_date: '2026-11-02 11:00:00.000' },
+            ]
+          : [],
+      );
+    }
     assert.ok(f.includes('state=completed'));
-    const date = (m) => `2026-11-0${f.includes('caseId=1') ? 2 : 5} 10:0${m}:00.000`;
+    const date = (m) => `2026-11-0${caso1 ? 2 : 5} 10:0${m}:00.000`;
     return json(200, [
       { name: 'Registrar Emergencia', reached_state_date: date(0) },
       { name: 'Publicar Convocatoria', reached_state_date: date(4) },
@@ -155,7 +171,8 @@ try {
     )[0].id;
   const ong = async (name) =>
     (await q('INSERT INTO ongs (name) VALUES ($1) RETURNING id', [name]))[0].id;
-  const oferta = async (eid, status, ongs, items) => {
+  // `reparto`: [[recursoCodigo, cantidad]] que comprometió el SN (puede ser menos que lo ofrecido).
+  const oferta = async (eid, status, ongs, items, reparto) => {
     const { id } = (
       await q('INSERT INTO ofertas (emergency_id, status) VALUES ($1, $2) RETURNING id', [
         eid,
@@ -164,8 +181,16 @@ try {
     )[0];
     if (['adjudicada', 'finalizada'].includes(status))
       await q(
-        "INSERT INTO adjudicaciones (emergency_id, oferta_id, created_at) VALUES ($1, $2, '2026-09-15T12:00:00Z')",
-        [eid, id],
+        `INSERT INTO adjudicaciones (emergency_id, oferta_id, reparto, created_at)
+         VALUES ($1, $2, $3::jsonb, '2026-09-15T12:00:00Z')`,
+        [
+          eid,
+          id,
+          reparto &&
+            JSON.stringify(
+              reparto.map(([recursoCodigo, cantidad]) => ({ recursoCodigo, cantidad })),
+            ),
+        ],
       );
     // eslint-disable-next-line no-restricted-syntax
     for (const o of ongs)
@@ -187,11 +212,17 @@ try {
   const l1 = await lote(e1, 'raciones', 100);
   const l2 = await lote(e2, 'raciones', 100);
   const l3 = await lote(e3, 'mantas', 50);
-  await oferta(e1, 'finalizada', [a, b], [[l1, 60]]);
-  await oferta(e1, 'adjudicada', [c], [[l1, 70]]); // cubierta 130 → tope 100
+  await oferta(e1, 'finalizada', [a, b], [[l1, 60]], [['raciones', 60]]);
+  // Ofreció 70 pero el SN comprometió 55: lo movilizado es 115 (> 100 pedidos → tope 100).
+  await oferta(e1, 'adjudicada', [c], [[l1, 70]], [['raciones', 55]]);
   await oferta(e1, 'no_seleccionada', [a], [[l1, 999]]); // no cuenta
-  await oferta(e2, 'finalizada', [a], [[l2, 50]]);
+  await oferta(e2, 'finalizada', [a], [[l2, 50]], [['raciones', 30]]); // ofreció 50, comprometió 30
   await oferta(e3, 'registrada', [a, b], [[l3, 10]]); // no cuenta
+
+  // E2 se adjudicó el 30/9 a las 23:30 en Argentina (1/10 02:30 UTC): su mes es 2026-09.
+  await q("UPDATE adjudicaciones SET created_at = '2026-10-01T02:30:00Z' WHERE emergency_id = $1", [
+    e2,
+  ]);
 
   // Tocar una oferta ya adjudicada (ej. finalizarla meses después) no mueve el mes del suministro.
   await q("UPDATE ofertas SET updated_at = '2026-11-10T09:00:00Z' WHERE status = 'finalizada'");
@@ -199,7 +230,7 @@ try {
   const data = await (await get('auditor')).json();
   const mes = '2026-09';
   assert.deepEqual(data.suministrosMovilizados, [
-    { mes, recursoCodigo: 'raciones', cantidad: 180 },
+    { mes, recursoCodigo: 'raciones', cantidad: 145 },
   ]);
   assert.deepEqual(data.resolucionConsorcios, {
     emergenciasFinalizadas: 2,
@@ -212,10 +243,10 @@ try {
   // Solo cuentan las emergencias adjudicadas: E1 100% y E2 50% (el lote de E3, registrada, no).
   assert.deepEqual(data.coberturaLotes, { emergencias: 2, lotes: 2, promedioPorcentaje: 75 });
 
-  // E1: un lote de 100 con dos ofertas (60+70): pedido una sola vez, movilizado 130, tope 100.
-  // E2: 100 pedidos, 50 ofrecidos. E3 (registrada) y la oferta no_seleccionada no cuentan.
+  // E1: 100 pedidos, el SN comprometió 60+55: movilizado 115, cubierto con tope 100. E2: 100
+  // pedidos, comprometió 30 (ofrecidas 50). E3 (registrada) y la no_seleccionada no cuentan.
   assert.deepEqual(data.suministrosPorRecurso, [
-    { recursoCodigo: 'raciones', pedido: 200, movilizado: 180, porcentajeCubierto: 75 },
+    { recursoCodigo: 'raciones', pedido: 200, movilizado: 145, porcentajeCubierto: 65 },
   ]);
 
   assert.deepEqual(data.periodo, { desde: null, hasta: null });
@@ -243,7 +274,7 @@ try {
   // Septiembre (E2 entra por su día en Argentina): sin E3.
   assert.deepEqual(resumen(await indicadores('?desde=2026-09-01&hasta=2026-09-30')), {
     periodo: { desde: '2026-09-01', hasta: '2026-09-30' },
-    suministros: [180],
+    suministros: [145],
     estados: { finalizada: 2 },
     finalizadas: 2,
     conConsorcio: 1,
@@ -253,7 +284,7 @@ try {
   // Un solo día: E1 (límites inclusivos desde = hasta).
   assert.deepEqual(resumen(await indicadores('?desde=2026-09-10&hasta=2026-09-10')), {
     periodo: { desde: '2026-09-10', hasta: '2026-09-10' },
-    suministros: [130],
+    suministros: [115],
     estados: { finalizada: 1 },
     finalizadas: 1,
     conConsorcio: 1,
@@ -263,12 +294,12 @@ try {
   // Período de E1 solo: movilizado supera lo pedido, porcentaje topado en 100.
   assert.deepEqual(
     (await indicadores('?desde=2026-09-10&hasta=2026-09-10')).suministrosPorRecurso,
-    [{ recursoCodigo: 'raciones', pedido: 100, movilizado: 130, porcentajeCubierto: 100 }],
+    [{ recursoCodigo: 'raciones', pedido: 100, movilizado: 115, porcentajeCubierto: 100 }],
   );
   // E2 queda el 30/9 en Argentina aunque en UTC ya sea 1/10.
   assert.deepEqual(
     resumen(await indicadores('?desde=2026-09-30&hasta=2026-09-30')).suministros,
-    [50],
+    [30],
   );
   assert.deepEqual(resumen(await indicadores('?hasta=2026-09-29')).estados, { finalizada: 1 });
   // Solo desde: E3 (registrada, todavía sin adjudicar → sin cobertura final).
@@ -308,6 +339,8 @@ try {
   assert.equal(tiempos.casosAnalizados, 3);
   assert.equal(tiempos.etapas[0].casos, 3);
   assert.equal(tiempos.etapas[0].promedioMinutos, 4);
+  assert.equal(tiempos.etapas[1].casos, 1); // ventana: "Cargar ofertas" abortada del caso 1
+  assert.equal(tiempos.etapas[1].promedioMinutos, 30);
   assert.equal(tiempos.etapas[4].casos, 1); // total: solo el terminado
   assert.equal(tiempos.etapas[4].promedioMinutos, 120);
   // porTipo: el caso 3 no tiene emergencia → fuera de porTipo; orden inundacion, incendio.
@@ -409,7 +442,7 @@ try {
   assert.equal(res.r.status, 200);
   assert.match(res.r.headers.get('content-type'), /^text\/csv; charset=utf-8/);
   assert.equal(res.r.headers.get('content-disposition'), adjunto('suministros', 'csv'));
-  assert.equal(res.text, 'mes,recursoCodigo,cantidad\n2026-09,raciones,180\n');
+  assert.equal(res.text, 'mes,recursoCodigo,cantidad\n2026-09,raciones,145\n');
   res = await csv('suministros', {}, '&desde=2027-01-01');
   assert.equal(res.text, 'mes,recursoCodigo,cantidad\n'); // sin filas: solo encabezado
 
@@ -429,7 +462,7 @@ try {
   const lineas = res.text.trimEnd().split('\n');
   assert.equal(lineas[0], 'etapa,casos,promedioMinutos,minMinutos,maxMinutos');
   assert.equal(lineas[1], 'registro_publicacion,3,4,4,4');
-  assert.equal(lineas[2], 'ventana_ofertas,0,,,');
+  assert.equal(lineas[2], 'ventana_ofertas,1,30,30,30'); // caso 1: 10:04 → 10:34 (abortada)
   assert.equal(lineas[5], 'total,1,120,120,120');
   assert.equal(lineas.length, 6);
   res = await csv('tiempos-por-tipo', {});
@@ -471,9 +504,9 @@ try {
   const eB = await enMarzo('convocatoria_abierta', false); // en curso: no cuenta
   const eC = await enMarzo('en_ejecucion', false);
   await enMarzo('finalizada'); // sin validacion_resumen: no cuenta en caminos
-  await oferta(eA, 'adjudicada', [a], [[await lote(eA, 'raciones', 100), 40]]);
+  await oferta(eA, 'adjudicada', [a], [[await lote(eA, 'raciones', 100), 40]], [['raciones', 40]]);
   await lote(eB, 'mantas', 100); // sin cubrir, pero la emergencia no está adjudicada
-  await oferta(eC, 'adjudicada', [b], [[await lote(eC, 'mantas', 50), 50]]);
+  await oferta(eC, 'adjudicada', [b], [[await lote(eC, 'mantas', 50), 50]], [['mantas', 50]]);
   await decision(eA, 'reabrir');
   await decision(eA, 'reabrir'); // dos reabrir en la misma emergencia: suman las dos
   await decision(eB, 'reabrir'); // cuenta aunque la emergencia siga en curso

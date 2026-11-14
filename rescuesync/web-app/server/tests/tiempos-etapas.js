@@ -53,22 +53,22 @@ assert.deepEqual(r.etapas[0], {
   minMinutos: 2.1,
   maxMinutos: 5,
 });
-// Caso sin una punta (sin "Notificar Cierre…") no cuenta; etapa vacía → null.
+// Caso sin una punta (sin "Cargar ofertas…") no cuenta; etapa vacía → null.
 assert.equal(r.etapas[1].casos, 0);
 assert.equal(r.etapas[1].promedioMinutos, null);
 // "total" solo cuenta casos terminados: el caso 2 está abierto.
 assert.equal(r.etapas[4].casos, 1);
 assert.equal(r.etapas[4].promedioMinutos, 120);
 
-// Reabrir: "Publicar Convocatoria" y "Notificar Cierre…" se repiten → primera aparición del
+// Reabrir: "Publicar Convocatoria" y "Cargar ofertas…" se repiten → primera aparición del
 // inicio y última del fin.
 const reabrir = calcularTiemposEtapas(
   [{ id: 7, start: '2026-11-10 08:00:00', end: null }],
   [
     t(7, 'Publicar Convocatoria', '2026-11-10 08:10:00.000'),
-    t(7, 'Notificar Cierre de Convocatoria a ONGS', '2026-11-10 08:20:00.000'),
+    t(7, 'Cargar ofertas (Parcial / Completa)', '2026-11-10 08:20:00.000'),
     t(7, 'Publicar Convocatoria', '2026-11-10 08:30:00.000'),
-    t(7, 'Notificar Cierre de Convocatoria a ONGS', '2026-11-10 08:40:00.000'),
+    t(7, 'Cargar ofertas (Parcial / Completa)', '2026-11-10 08:40:00.000'),
   ],
 );
 assert.equal(reabrir.etapas[1].casos, 1);

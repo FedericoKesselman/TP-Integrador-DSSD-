@@ -39,7 +39,6 @@ const EMERGENCIAS = [
     phone: '+54 221 555 0101',
     createdAt: '2026-09-01T10:00:00-03:00',
     estado: 'finalizada',
-    duracionMin: 240,
     horas: [3, 8, 10, 31, 34, 270],
     lotes: [
       ['botes', 'Botes de rescate', 'unidades', 6],
@@ -96,7 +95,6 @@ const EMERGENCIAS = [
     phone: '+54 249 555 0102',
     createdAt: '2026-09-28T15:30:00-03:00',
     estado: 'finalizada',
-    duracionMin: 120,
     horas: [2, 5, 7, 80, 84, 200],
     desvio: { tipo: 'reabrir', horas: [9, 12, 30] },
     lotes: [
@@ -144,7 +142,6 @@ const EMERGENCIAS = [
     phone: '+54 2323 55 0103',
     createdAt: '2026-10-10T08:15:00-03:00',
     estado: 'finalizada',
-    duracionMin: 180,
     horas: [2, 6, 8, 52, 56, 150],
     lotes: [
       ['carpas', 'Carpas familiares (4-6 personas)', 'unidades', 40],
@@ -193,7 +190,6 @@ const EMERGENCIAS = [
     phone: '+54 291 555 0104',
     createdAt: '2026-10-30T19:00:00-03:00',
     estado: 'en_ejecucion',
-    duracionMin: 120,
     horas: [1, 4, 6, 85, 88],
     lotes: [
       ['lonas', 'Lonas impermeables', 'unidades', 300],
@@ -244,7 +240,6 @@ const EMERGENCIAS = [
     phone: '+54 11 5555 0105',
     createdAt: '2026-11-04T07:45:00-03:00',
     estado: 'adjudicada',
-    duracionMin: 90,
     horas: [1, 3, 5, 100],
     desvio: { tipo: 'reformular', horas: [6, 7, 13, 16] },
     lotes: [
@@ -293,7 +288,6 @@ const EMERGENCIAS = [
     phone: '+54 11 5555 0106',
     createdAt: '2026-11-08T12:20:00-03:00',
     estado: 'validada',
-    duracionMin: 60,
     horas: [1, 2, 20],
     lotes: [
       ['bomberos', 'Bomberos / Brigadistas', 'personas', 12],
@@ -411,6 +405,18 @@ async function insertarEmergencia(client, em, ongIds) {
     momento.validada = nuevas.at(-1).cuando; // la validación vigente es la última
   }
 
+  // Duración de la convocatoria vigente = lo que pasó entre su última apertura y su cierre en el
+  // historial (así `duracion_convocatoria_min` coincide con las fechas). Si todavía no cerró, queda
+  // el valor configurado (`duracionMin`).
+  let abierta = null;
+  let duracionMin = em.duracionMin ?? null;
+  transiciones.forEach((t) => {
+    if (t.a === 'convocatoria_abierta') abierta = t.cuando;
+    if (t.a === 'convocatoria_cerrada') {
+      duracionMin = Math.round((new Date(t.cuando) - new Date(abierta)) / 60000);
+    }
+  });
+
   const { rows } = await client.query(
     `INSERT INTO emergencies
        (type, type_other, severity, province_id, province, municipality_id, municipality,
@@ -434,7 +440,7 @@ async function insertarEmergencia(client, em, ongIds) {
       em.contact,
       em.phone,
       em.estado,
-      pasos.length > 1 ? em.duracionMin : null,
+      pasos.length > 1 ? duracionMin : null,
       pasos.length > 1 ? 1 + (em.desvio ? 1 : 0) : 0,
       em.createdAt,
     ],
@@ -556,6 +562,7 @@ async function insertarEmergencia(client, em, ongIds) {
           `demo-${ofertaIds[i].slice(0, 8)}`,
           JSON.stringify(
             of.items.map(([lote, ofrecida, habilitada]) => ({
+              ongRef: of.ongs[0],
               recursoCodigo: em.lotes[lote][0],
               cantidad: Math.min(ofrecida, habilitada),
             })),

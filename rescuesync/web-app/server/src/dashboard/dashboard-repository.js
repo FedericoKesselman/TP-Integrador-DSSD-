@@ -1,6 +1,7 @@
 import pool from '../db.js';
 
-// Ofertas que cuentan como "movilizadas": ya adjudicadas o con la emergencia finalizada.
+// Ofertas que cuentan como "movilizadas": ya adjudicadas o con la emergencia finalizada. Lo
+// movilizado es lo que el SN comprometió (`adjudicaciones.reparto`), no lo ofrecido.
 const OFERTAS_VIGENTES = "('adjudicada', 'finalizada')";
 
 // Emergencias dadas de alta en el período (día de Argentina, límites inclusivos). $1 = desde,
@@ -16,22 +17,19 @@ const ADJUDICADAS = "('adjudicada', 'en_ejecucion', 'finalizada')";
 const round1 = (n) => Math.round(Number(n) * 10) / 10;
 
 // Indicadores del dashboard con datos propios (roadmapfase5.md 5.5).
-// El mes de un suministro es el de `adjudicaciones.created_at`. Una oferta adjudicada/finalizada
-// tiene una sola fila (UNIQUE emergency_id+oferta_id) y ya no se borra tras confirmar el compromiso;
-// si hubiera varias, se usaría la más reciente (MAX).
+// El mes de un suministro es el de `adjudicaciones.created_at` (mes de Argentina). Una oferta
+// adjudicada/finalizada tiene una sola fila (UNIQUE emergency_id+oferta_id) y ya no se borra
+// tras confirmar el compromiso.
 export async function getIndicadores({ desde = null, hasta = null } = {}) {
   const params = [desde, hasta];
-  const [suministros, consorcios, estados, cobertura, caminos] = await Promise.all([
+  const [suministros, consorcios, recursos, estados, cobertura, caminos] = await Promise.all([
     pool.query(
-      `SELECT to_char(date_trunc('month', a.adjudicada_at), 'YYYY-MM') AS mes,
-              l.resource_code AS recurso_codigo,
-              SUM(ol.quantity_offered)::int AS cantidad
-       FROM oferta_lotes ol
-       JOIN ofertas o ON o.id = ol.oferta_id
-       JOIN (
-         SELECT oferta_id, MAX(created_at) AS adjudicada_at FROM adjudicaciones GROUP BY oferta_id
-       ) a ON a.oferta_id = o.id
-       JOIN lotes l ON l.id = ol.lote_id
+      `SELECT to_char(date_trunc('month', a.created_at AT TIME ZONE 'America/Argentina/Buenos_Aires'), 'YYYY-MM') AS mes,
+              r->>'recursoCodigo' AS recurso_codigo,
+              SUM((r->>'cantidad')::int)::int AS cantidad
+       FROM adjudicaciones a
+       JOIN ofertas o ON o.id = a.oferta_id
+       CROSS JOIN LATERAL jsonb_array_elements(COALESCE(a.reparto, '[]'::jsonb)) r
        WHERE o.status IN ${OFERTAS_VIGENTES} AND ${EN_PERIODO('o.emergency_id')}
        GROUP BY 1, 2
        ORDER BY 1, 2`,
@@ -45,6 +43,25 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
                   AND (SELECT count(*) FROM oferta_ongs oo WHERE oo.oferta_id = o.id) >= 2
               ))::int AS con_consorcio
        FROM emergencies e WHERE e.status = 'finalizada' AND ${EN_PERIODO('e.id')}`,
+      params,
+    ),
+    pool.query(
+      `SELECT p.resource_code, p.pedido, COALESCE(m.movilizado, 0) AS movilizado
+       FROM (
+         SELECT l.emergency_id, l.resource_code, SUM(l.quantity_requested)::int AS pedido
+         FROM lotes l JOIN emergencies e ON e.id = l.emergency_id
+         WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('l.emergency_id')}
+         GROUP BY 1, 2
+       ) p
+       LEFT JOIN (
+         SELECT a.emergency_id, r->>'recursoCodigo' AS resource_code,
+                SUM((r->>'cantidad')::int) AS movilizado
+         FROM adjudicaciones a
+         JOIN ofertas o ON o.id = a.oferta_id
+         CROSS JOIN LATERAL jsonb_array_elements(COALESCE(a.reparto, '[]'::jsonb)) r
+         WHERE o.status IN ${OFERTAS_VIGENTES}
+         GROUP BY 1, 2
+       ) m USING (emergency_id, resource_code)`,
       params,
     ),
     pool.query(
@@ -94,14 +111,17 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
     porEstado.set(row.status, entry);
   });
   // Una fila por lote (sin fan-out); acá se topa lo cubierto y se agrupa por recurso.
-  const cubierta = (row) => Math.min(Number(row.movilizado), row.quantity_requested);
-  const ratios = cobertura.rows.map((row) => cubierta(row) / row.quantity_requested);
+  const ratios = cobertura.rows.map(
+    (row) => Math.min(Number(row.movilizado), row.quantity_requested) / row.quantity_requested,
+  );
+  // Por emergencia y recurso (el reparto del SN no distingue lotes): lo movilizado se topa en lo
+  // pedido y se suma por recurso.
   const porRecurso = new Map();
-  cobertura.rows.forEach((row) => {
+  recursos.rows.forEach((row) => {
     const r = porRecurso.get(row.resource_code) ?? { pedido: 0, movilizado: 0, cubierto: 0 };
-    r.pedido += row.quantity_requested;
+    r.pedido += row.pedido;
     r.movilizado += Number(row.movilizado);
-    r.cubierto += cubierta(row);
+    r.cubierto += Math.min(Number(row.movilizado), row.pedido);
     porRecurso.set(row.resource_code, r);
   });
 

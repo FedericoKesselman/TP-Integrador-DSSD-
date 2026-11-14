@@ -12,13 +12,17 @@ import { EMERGENCY_TYPE_VALUES } from '../../../shared/emergency-validation.js';
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+// La ventana termina cuando el temporizador interrumpe "Cargar ofertas" (queda `aborted`): la
+// tarea de servicio "Notificar Cierre…" falla hoy en el proceso real y nunca se completa.
+export const TAREA_VENTANA = 'Cargar ofertas (Parcial / Completa)';
+
 // Etapas del contrato, siempre en este orden. `total` usa inicio y fin del caso.
 const ETAPAS = [
   { etapa: 'registro_publicacion', desde: 'Registrar Emergencia', hasta: 'Publicar Convocatoria' },
   {
     etapa: 'ventana_ofertas',
     desde: 'Publicar Convocatoria',
-    hasta: 'Notificar Cierre de Convocatoria a ONGS',
+    hasta: TAREA_VENTANA,
   },
   { etapa: 'validacion_adjudicacion', desde: 'Validar Ofertas', hasta: 'Adjudicar Ofertas' },
   { etapa: 'ejecucion', desde: 'Etapa Ejecución', hasta: 'Liberar recursos' },
