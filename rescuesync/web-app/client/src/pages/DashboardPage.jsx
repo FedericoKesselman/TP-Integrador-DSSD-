@@ -65,12 +65,17 @@ function DashboardPage() {
   }, [periodo, periodoInvalido]);
 
   const suministros = indicadores.data?.suministrosMovilizados;
+  const porRecurso = indicadores.data?.suministrosPorRecurso;
   const recursoOptions = useMemo(
     () =>
-      [...new Set((suministros ?? []).map((item) => item.recursoCodigo))]
+      [
+        ...new Set(
+          [...(suministros ?? []), ...(porRecurso ?? [])].map((item) => item.recursoCodigo),
+        ),
+      ]
         .map((code) => ({ code, label: getResourceInfo(code).label }))
         .sort((a, b) => a.label.localeCompare(b.label, 'es')),
-    [suministros],
+    [suministros, porRecurso],
   );
   const recursoActivo = recursoOptions.some((option) => option.code === recurso) ? recurso : '';
 
@@ -122,7 +127,11 @@ function DashboardPage() {
         >
           <KpiTiles indicadores={indicadores.data} tiempos={tiempos.data} />
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <SuministrosChart suministros={suministros ?? []} recurso={recursoActivo} />
+            <SuministrosChart
+              suministros={suministros ?? []}
+              porRecurso={porRecurso ?? []}
+              recurso={recursoActivo}
+            />
             <EstadoProyectosChart estadoProyectos={indicadores.data.estadoProyectos} />
             <div className="xl:col-span-2">
               <CaminosDecisionChart caminos={indicadores.data.caminosDecision} />

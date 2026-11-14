@@ -37,13 +37,21 @@ function wrapLabel(text, max) {
 
 function SuministrosTooltip({ active = false, payload = [] }) {
   if (!active || !payload.length) return null;
-  const { label, unit, value, mes, category } = payload[0].payload;
+  const { label, unit, value, mes, category, pedido, movilizado, porcentaje } = payload[0].payload;
   return (
     <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-lift">
       <p className="font-bold text-ink">{label}</p>
       <p className="text-ink-soft">{category}</p>
       {mes && <p className="text-ink-soft">{formatMonth(mes)}</p>}
-      <p className="text-ink-soft">{formatQuantity(value, unit)}</p>
+      {mes ? (
+        <p className="text-ink-soft">{formatQuantity(value, unit)}</p>
+      ) : (
+        <>
+          <p className="text-ink-soft">{porcentaje} % cubierto</p>
+          <p className="text-ink-soft">Movilizado: {formatQuantity(movilizado, unit)}</p>
+          <p className="text-ink-soft">Pedido: {formatQuantity(pedido, unit)}</p>
+        </>
+      )}
     </div>
   );
 }
@@ -53,13 +61,18 @@ SuministrosTooltip.propTypes = {
   payload: PropTypes.arrayOf(PropTypes.shape({ payload: PropTypes.shape({}) })),
 };
 
-// `suministros` viene sin filtrar; `recurso` ('' = todos) elige la vista.
-function SuministrosChart({ suministros, recurso = '' }) {
+// Detalle bajo el nombre: "3.000 de 4.000 litros" (+ aviso si se superó lo pedido).
+function coverageDetail({ movilizado, pedido, unit }) {
+  const base = `${formatQuantity(movilizado)} de ${formatQuantity(pedido, unit)}`;
+  return movilizado > pedido ? `${base} (más de lo pedido)` : base;
+}
+
+// "Todos": % cubierto por recurso (`porRecurso`, ya ordenado por la API).
+// Un recurso: cantidad por mes desde `suministros`.
+function SuministrosChart({ suministros, porRecurso, recurso = '' }) {
   const narrow = useMediaQuery('(max-width: 640px)');
   const info = getResourceInfo(recurso);
 
-  // Vista "Todos": total por recurso (nunca se suman recursos distintos entre sí).
-  // Vista de un recurso: cantidad por mes.
   const rows = useMemo(() => {
     if (recurso) {
       return suministros
@@ -74,35 +87,45 @@ function SuministrosChart({ suministros, recurso = '' }) {
         }))
         .sort((a, b) => a.mes.localeCompare(b.mes));
     }
-    const totals = new Map();
-    suministros.forEach(({ recursoCodigo, cantidad }) =>
-      totals.set(recursoCodigo, (totals.get(recursoCodigo) ?? 0) + cantidad),
-    );
-    return [...totals]
-      .map(([code, value]) => ({ code, value, ...getResourceInfo(code) }))
-      .sort((a, b) => b.value - a.value);
-  }, [suministros, recurso, info]);
+    return porRecurso.map((item) => ({
+      code: item.recursoCodigo,
+      value: item.porcentajeCubierto,
+      porcentaje: item.porcentajeCubierto,
+      pedido: item.pedido,
+      movilizado: item.movilizado,
+      ...getResourceInfo(item.recursoCodigo),
+    }));
+  }, [suministros, porRecurso, recurso, info]);
 
   const subtitle = recurso
     ? `${info.label} por mes de adjudicación${info.unit ? ` (${info.unit})` : ''}`
-    : 'Total por recurso en el período. Elegí un recurso para ver su evolución por mes.';
+    : 'Qué parte de lo pedido se movilizó, por recurso (emergencias adjudicadas). Elegí un recurso para ver su evolución por mes.';
   const summary = rows
     .map((row) =>
       recurso
         ? `${formatMonth(row.mes)}: ${formatQuantity(row.value, row.unit)}`
-        : `${row.label} (${row.category}): ${formatQuantity(row.value, row.unit)}`,
+        : `${row.label} (${row.category}): ${row.porcentaje} % cubierto, ${coverageDetail(row)}`,
     )
     .join('. ');
 
   // Leyenda: solo las categorías presentes en los datos actuales.
   const legend = [...new Map(rows.map((row) => [row.category, row.color]))];
 
-  const renderTick = ({ x, y, payload }) => {
-    const lines = wrapLabel(payload.value, narrow ? 16 : 26);
+  // Nombre (oscuro) y, debajo, el detalle movilizado/pedido (gris).
+  const renderTick = ({ x, y, payload, index }) => {
+    const names = wrapLabel(payload.value, narrow ? 16 : 26);
+    const details = wrapLabel(coverageDetail(rows[index]), narrow ? 18 : 30);
+    const total = names.length + details.length;
     return (
-      <text x={x} y={y} textAnchor="end" fontSize={narrow ? 11 : 12} fill="#334155">
-        {lines.map((line, i) => (
-          <tspan key={line} x={x} dy={i === 0 ? `${0.35 - (lines.length - 1) * 0.6}em` : '1.2em'}>
+      <text x={x} y={y} textAnchor="end" fontSize={narrow ? 11 : 12}>
+        {[...names, ...details].map((line, i) => (
+          <tspan
+            key={line}
+            x={x}
+            dy={i === 0 ? `${0.35 - (total - 1) * 0.6}em` : '1.2em'}
+            fill={i < names.length ? '#334155' : CHART_INK_MUTED}
+            fontSize={i < names.length ? undefined : 11}
+          >
             {line}
           </tspan>
         ))}
@@ -114,7 +137,7 @@ function SuministrosChart({ suministros, recurso = '' }) {
   const renderValue = ({ x = 0, y = 0, width = 0, height = 0, index }) => {
     const row = rows[index];
     if (!row) return null;
-    const text = formatQuantity(row.value, row.unit);
+    const text = recurso ? formatQuantity(row.value, row.unit) : `${row.value} %`;
     return recurso ? (
       <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fill="#334155">
         {text}
@@ -129,13 +152,17 @@ function SuministrosChart({ suministros, recurso = '' }) {
   return (
     <ChartCard id="chart-suministros" title="Suministros movilizados" summary={subtitle}>
       {rows.length === 0 ? (
-        <EmptyChart>No hay suministros movilizados en este período.</EmptyChart>
+        <EmptyChart>
+          {recurso
+            ? 'No hay suministros movilizados en este período.'
+            : 'Sin emergencias adjudicadas en el período'}
+        </EmptyChart>
       ) : (
         <div
           role="img"
           aria-label={`Gráfico de barras. ${subtitle}. ${summary}.`}
           className="w-full"
-          style={{ height: recurso ? 320 : Math.max(240, rows.length * 44 + 40) }}
+          style={{ height: recurso ? 320 : Math.max(240, rows.length * (narrow ? 76 : 64) + 40) }}
         >
           <ResponsiveContainer width="100%" height="100%">
             {recurso ? (
@@ -166,20 +193,21 @@ function SuministrosChart({ suministros, recurso = '' }) {
               <BarChart
                 data={rows}
                 layout="vertical"
-                margin={{ top: 4, right: narrow ? 84 : 96, left: 0, bottom: 0 }}
+                margin={{ top: 4, right: 48, left: 0, bottom: 0 }}
               >
                 <CartesianGrid stroke={CHART_LINE} horizontal={false} />
                 <XAxis
                   type="number"
-                  tickFormatter={(value) => formatQuantity(value)}
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  tickFormatter={(value) => `${value} %`}
                   tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
                   stroke={CHART_LINE}
-                  allowDecimals={false}
                 />
                 <YAxis
                   type="category"
                   dataKey="label"
-                  width={narrow ? 118 : 190}
+                  width={narrow ? 130 : 210}
                   tick={renderTick}
                   interval={0}
                   stroke={CHART_LINE}
@@ -220,6 +248,14 @@ SuministrosChart.propTypes = {
       mes: PropTypes.string,
       recursoCodigo: PropTypes.string,
       cantidad: PropTypes.number,
+    }),
+  ).isRequired,
+  porRecurso: PropTypes.arrayOf(
+    PropTypes.shape({
+      recursoCodigo: PropTypes.string,
+      pedido: PropTypes.number,
+      movilizado: PropTypes.number,
+      porcentajeCubierto: PropTypes.number,
     }),
   ).isRequired,
   recurso: PropTypes.string,

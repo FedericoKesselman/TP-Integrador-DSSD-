@@ -6,7 +6,8 @@ import { buildExportUrl } from '../../services/dashboard-service.js';
 
 const OPTIONS = [
   { label: 'Todo (JSON)', formato: 'json' },
-  { label: 'Suministros (CSV)', formato: 'csv', dataset: 'suministros' },
+  { label: 'Suministros por mes (CSV)', formato: 'csv', dataset: 'suministros' },
+  { label: 'Suministros por recurso (CSV)', formato: 'csv', dataset: 'suministros-por-recurso' },
   { label: 'Estado de proyectos (CSV)', formato: 'csv', dataset: 'estado-proyectos' },
   { label: 'Caminos tras la validación (CSV)', formato: 'csv', dataset: 'caminos-decision' },
   { label: 'Tiempos por etapa (CSV)', formato: 'csv', dataset: 'tiempos-etapas' },
