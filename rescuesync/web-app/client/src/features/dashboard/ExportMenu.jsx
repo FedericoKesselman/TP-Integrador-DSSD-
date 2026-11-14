@@ -8,6 +8,7 @@ const OPTIONS = [
   { label: 'Todo (JSON)', formato: 'json' },
   { label: 'Suministros (CSV)', formato: 'csv', dataset: 'suministros' },
   { label: 'Estado de proyectos (CSV)', formato: 'csv', dataset: 'estado-proyectos' },
+  { label: 'Caminos tras la validación (CSV)', formato: 'csv', dataset: 'caminos-decision' },
   { label: 'Tiempos por etapa (CSV)', formato: 'csv', dataset: 'tiempos-etapas' },
   { label: 'Tiempos por tipo (CSV)', formato: 'csv', dataset: 'tiempos-por-tipo' },
 ];

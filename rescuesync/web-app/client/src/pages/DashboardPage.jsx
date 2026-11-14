@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import Alert from '../components/ui/Alert.jsx';
 import { getResourceInfo } from '../features/dashboard/dashboard-format.js';
+import CaminosDecisionChart from '../features/dashboard/CaminosDecisionChart.jsx';
 import DashboardFilters from '../features/dashboard/DashboardFilters.jsx';
 import EstadoProyectosChart from '../features/dashboard/EstadoProyectosChart.jsx';
 import ExportMenu from '../features/dashboard/ExportMenu.jsx';
@@ -123,6 +124,9 @@ function DashboardPage() {
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             <SuministrosChart suministros={suministros ?? []} recurso={recursoActivo} />
             <EstadoProyectosChart estadoProyectos={indicadores.data.estadoProyectos} />
+            <div className="xl:col-span-2">
+              <CaminosDecisionChart caminos={indicadores.data.caminosDecision} />
+            </div>
           </div>
 
           <div className="mt-6">

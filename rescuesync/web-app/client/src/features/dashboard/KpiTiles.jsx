@@ -23,7 +23,8 @@ Tile.propTypes = {
   detail: PropTypes.string.isRequired,
 };
 
-const percent = (n) => `${String(n).replace('.', ',')}%`;
+const percentFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const percent = (n) => `${percentFormat.format(n)}%`;
 
 // `tiempos` es null mientras carga o si Bonita falló.
 function KpiTiles({ indicadores, tiempos = null }) {
@@ -32,7 +33,7 @@ function KpiTiles({ indicadores, tiempos = null }) {
     0,
   );
   const { emergenciasFinalizadas, conConsorcio, porcentaje } = indicadores.resolucionConsorcios;
-  const { lotes, promedioPorcentaje } = indicadores.coberturaLotes;
+  const { emergencias, lotes, promedioPorcentaje } = indicadores.coberturaLotes;
 
   return (
     <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -50,9 +51,15 @@ function KpiTiles({ indicadores, tiempos = null }) {
       />
       <Tile
         icon={Boxes}
-        label="Cobertura promedio de lotes"
-        value={lotes > 0 ? percent(promedioPorcentaje) : '—'}
-        detail={`${lotes} ${lotes === 1 ? 'lote' : 'lotes'}`}
+        label="Cobertura al adjudicar"
+        value={promedioPorcentaje === null ? '—' : percent(promedioPorcentaje)}
+        detail={
+          promedioPorcentaje === null
+            ? 'Sin emergencias adjudicadas en el período'
+            : `${lotes} ${lotes === 1 ? 'lote' : 'lotes'} de ${emergencias} ${
+                emergencias === 1 ? 'emergencia adjudicada' : 'emergencias adjudicadas'
+              }`
+        }
       />
       <Tile
         icon={Layers}
@@ -73,6 +80,7 @@ KpiTiles.propTypes = {
       porcentaje: PropTypes.number,
     }),
     coberturaLotes: PropTypes.shape({
+      emergencias: PropTypes.number,
       lotes: PropTypes.number,
       promedioPorcentaje: PropTypes.number,
     }),
