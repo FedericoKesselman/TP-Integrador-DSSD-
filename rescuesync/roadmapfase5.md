@@ -446,7 +446,7 @@ planificación; las horas reales van a la bitácora E5-90).
 | [ ] E5-82 | Informe: apartado de Bonita (proceso, timer, caminos alternativos, conectores, parámetros) | 2 | E5-01, E5-40 | — | P1 | |
 | [ ] E5-83 | Informe: apartado del backend de la web-app (API, estados, integración, inventario como excepción justificada) | 2 | E5-01, E5-22, E5-23 | — | P1 | |
 | [ ] E5-84 | Informe: apartado del frontend (pantallas por rol, RBAC, responsive) | 1.5 | E5-01, E5-57 | — | P1 | |
-| [ ] E5-85 | Informe: apartado del dashboard | 1.5 | E5-01, E5-63, E5-64 | — | P1 | |
+| [~] E5-85 | Informe: apartado del dashboard | 1.5 | E5-01, E5-63, E5-64 | — | P1 | Ignacio 14/11 · sección 10 del informe reescrita (10.1–10.6), fila del dashboard en la matriz (15), sección 16 y 9.2; se cierra con E5-75 |
 | [ ] E5-86 | Informe: modelo de proceso de la Entrega 1 vs. el final, con los desvíos justificados (por ejemplo, compromiso antes de notificar) | 3 | E5-01, E5-40 | — | P1 | |
 | [ ] E5-87 | Informe: matriz de cumplimiento (cada requisito del enunciado → dónde se cumple y cómo se verificó) | 3 | E5-01, E5-70 | — | P1 | |
 | [ ] E5-88 | Informe: gestión del proyecto (Gantt, desvíos, cómo se usó IA) | 2 | E5-01, E5-90 | — | P1 | |
