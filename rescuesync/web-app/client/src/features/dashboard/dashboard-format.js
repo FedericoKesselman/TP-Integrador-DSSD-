@@ -51,19 +51,33 @@ export function getStatusColor(status) {
   return TONE_HEX[getStatusCopy(status).tone];
 }
 
+// Color fijo por categoría de recurso (sin rojo puro: queda para errores/severidad).
+export const CATEGORY_COLORS = {
+  salud: '#be185d', // magenta
+  alimentos: '#d97706', // ámbar
+  refugio: '#7c3aed', // violeta
+  rescate: '#0072bb', // brand
+  logistica: '#059669', // verde
+};
+const OTHER_CATEGORY = { category: 'Otros', color: '#64748b' };
+
 const RESOURCES = new Map(
-  RESOURCE_CATEGORIES.flatMap((category) => category.resources).map((resource, index) => [
+  RESOURCE_CATEGORIES.flatMap((category) =>
+    category.resources.map((resource) => ({ category, resource })),
+  ).map(({ category, resource }, index) => [
     resource.id,
     {
       label: resource.label,
       unit: resource.unit,
       orden: index,
+      category: category.label,
+      color: CATEGORY_COLORS[category.id] ?? OTHER_CATEGORY.color,
     },
   ]),
 );
 
 export function getResourceInfo(code) {
-  return RESOURCES.get(code) ?? { label: code, unit: '', orden: Infinity };
+  return RESOURCES.get(code) ?? { label: code, unit: '', orden: Infinity, ...OTHER_CATEGORY };
 }
 
 const numberFormat = new Intl.NumberFormat('es-AR');

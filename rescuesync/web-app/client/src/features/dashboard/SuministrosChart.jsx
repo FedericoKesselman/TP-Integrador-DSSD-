@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip,
@@ -15,7 +16,6 @@ import { useMediaQuery } from '../../hooks/use-media-query.js';
 
 import ChartCard, { EmptyChart } from './ChartCard.jsx';
 import {
-  BRAND_COLOR,
   CHART_INK_MUTED,
   CHART_LINE,
   formatMonth,
@@ -37,10 +37,11 @@ function wrapLabel(text, max) {
 
 function SuministrosTooltip({ active = false, payload = [] }) {
   if (!active || !payload.length) return null;
-  const { label, unit, value, mes } = payload[0].payload;
+  const { label, unit, value, mes, category } = payload[0].payload;
   return (
     <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-lift">
       <p className="font-bold text-ink">{label}</p>
+      <p className="text-ink-soft">{category}</p>
       {mes && <p className="text-ink-soft">{formatMonth(mes)}</p>}
       <p className="text-ink-soft">{formatQuantity(value, unit)}</p>
     </div>
@@ -68,6 +69,8 @@ function SuministrosChart({ suministros, recurso = '' }) {
           value: item.cantidad,
           label: info.label,
           unit: info.unit,
+          category: info.category,
+          color: info.color,
         }))
         .sort((a, b) => a.mes.localeCompare(b.mes));
     }
@@ -78,7 +81,7 @@ function SuministrosChart({ suministros, recurso = '' }) {
     return [...totals]
       .map(([code, value]) => ({ code, value, ...getResourceInfo(code) }))
       .sort((a, b) => b.value - a.value);
-  }, [suministros, recurso, info.label, info.unit]);
+  }, [suministros, recurso, info]);
 
   const subtitle = recurso
     ? `${info.label} por mes de adjudicación${info.unit ? ` (${info.unit})` : ''}`
@@ -87,9 +90,12 @@ function SuministrosChart({ suministros, recurso = '' }) {
     .map((row) =>
       recurso
         ? `${formatMonth(row.mes)}: ${formatQuantity(row.value, row.unit)}`
-        : `${row.label}: ${formatQuantity(row.value, row.unit)}`,
+        : `${row.label} (${row.category}): ${formatQuantity(row.value, row.unit)}`,
     )
     .join('. ');
+
+  // Leyenda: solo las categorías presentes en los datos actuales.
+  const legend = [...new Map(rows.map((row) => [row.category, row.color]))];
 
   const renderTick = ({ x, y, payload }) => {
     const lines = wrapLabel(payload.value, narrow ? 16 : 26);
@@ -149,7 +155,10 @@ function SuministrosChart({ suministros, recurso = '' }) {
                   width={56}
                 />
                 <Tooltip content={<SuministrosTooltip />} cursor={{ fill: '#f1f5f9' }} />
-                <Bar dataKey="value" fill={BRAND_COLOR} radius={[4, 4, 0, 0]} maxBarSize={56}>
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={56}>
+                  {rows.map((row) => (
+                    <Cell key={row.mes} fill={row.color} />
+                  ))}
                   <LabelList dataKey="value" content={renderValue} />
                 </Bar>
               </BarChart>
@@ -176,13 +185,30 @@ function SuministrosChart({ suministros, recurso = '' }) {
                   stroke={CHART_LINE}
                 />
                 <Tooltip content={<SuministrosTooltip />} cursor={{ fill: '#f1f5f9' }} />
-                <Bar dataKey="value" fill={BRAND_COLOR} radius={[0, 4, 4, 0]} maxBarSize={28}>
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={28}>
+                  {rows.map((row) => (
+                    <Cell key={row.code} fill={row.color} />
+                  ))}
                   <LabelList dataKey="value" content={renderValue} />
                 </Bar>
               </BarChart>
             )}
           </ResponsiveContainer>
         </div>
+      )}
+      {rows.length > 0 && (
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-soft">
+          {legend.map(([name, color]) => (
+            <li key={name} className="flex items-center gap-1.5">
+              <span
+                aria-hidden="true"
+                className="inline-block h-3 w-3 rounded-sm"
+                style={{ backgroundColor: color }}
+              />
+              {name}
+            </li>
+          ))}
+        </ul>
       )}
     </ChartCard>
   );
