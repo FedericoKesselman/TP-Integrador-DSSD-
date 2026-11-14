@@ -628,15 +628,14 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
   cubierta por ofertas `adjudicada`/`finalizada` (tope = pedida) / `quantity_requested`,
   promediada sobre esos lotes. `emergencias` = cuántas emergencias aportan lotes. Sin
   emergencias adjudicadas: `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
-- `caminosDecision`: qué pasó tras la validación cuando el SN no cubrió todos los lotes
-  (camino alternativo). Sobre las emergencias del período:
-  - `todosCubiertos` / `continuar`: emergencias en `adjudicada`, `en_ejecucion` o
-    `finalizada` cuya última validación (`validacion_resumen.todosLosLotesCubiertos`) dio
-    `true` / `false` (con `false` solo se llega a adjudicar eligiendo continuar). Sin
-    `validacion_resumen` no cuentan.
-  - `reabrir` / `reformular`: cantidad de decisiones, contadas en `emergency_status_history`
-    como transiciones `validada` → `convocatoria_abierta` / `validada` → `registrada` (una
-    emergencia puede sumar varias).
+- `caminosDecision`: qué pasó tras la validación (camino alternativo). Sobre las
+  emergencias del período:
+  - `todosCubiertos`: emergencias en `adjudicada`, `en_ejecucion` o `finalizada` cuya última
+    validación (`validacion_resumen.todosLosLotesCubiertos`) dio `true` (fueron directo a
+    adjudicar). Sin `validacion_resumen` no cuentan.
+  - `continuar` / `reabrir` / `reformular`: cantidad de decisiones del coordinador en
+    "Decidir como Continuar", registradas en la tabla `emergency_decisiones` (una fila por
+    decisión confirmada; una emergencia puede sumar varias).
 - Porcentajes con 1 decimal. Sin datos: listas vacías, contadores y porcentajes en 0 (salvo
   `coberturaLotes.promedioPorcentaje`, que es `null`).
 
