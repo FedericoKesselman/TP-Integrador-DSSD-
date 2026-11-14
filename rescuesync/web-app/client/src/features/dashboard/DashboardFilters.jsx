@@ -15,10 +15,11 @@ function currentMonth() {
   };
 }
 
+// Desde el día 1 del mes de hace dos meses (así no hay desborde por meses de 31 días).
 function lastThreeMonths() {
   const today = new Date();
   return {
-    desde: toIsoDate(new Date(today.getFullYear(), today.getMonth() - 3, today.getDate())),
+    desde: toIsoDate(new Date(today.getFullYear(), today.getMonth() - 2, 1)),
     hasta: toIsoDate(today),
   };
 }

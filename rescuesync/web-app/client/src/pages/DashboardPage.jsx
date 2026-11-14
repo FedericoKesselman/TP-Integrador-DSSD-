@@ -36,7 +36,12 @@ function DashboardPage() {
 
   // Cada cambio de período vuelve a pedir ambos endpoints (en paralelo, sin pisarse).
   useEffect(() => {
-    if (periodoInvalido) return undefined;
+    if (periodoInvalido) {
+      // La consulta anterior ya no va a resolver (se cancela): que no quede cargando.
+      setIndicadores((current) => ({ ...current, loading: false }));
+      setTiempos((current) => ({ ...current, loading: false }));
+      return undefined;
+    }
     let cancelled = false;
     setIndicadores((current) => ({ ...current, loading: true, error: null }));
     setTiempos((current) => ({ ...current, loading: true, error: null }));

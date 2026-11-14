@@ -19,6 +19,7 @@ import {
   CHART_INK_MUTED,
   CHART_LINE,
   formatMonth,
+  formatPercent,
   formatQuantity,
   getResourceInfo,
 } from './dashboard-format.js';
@@ -47,7 +48,7 @@ function SuministrosTooltip({ active = false, payload = [] }) {
         <p className="text-ink-soft">{formatQuantity(value, unit)}</p>
       ) : (
         <>
-          <p className="text-ink-soft">{porcentaje} % cubierto</p>
+          <p className="text-ink-soft">{formatPercent(porcentaje)} cubierto</p>
           <p className="text-ink-soft">Movilizado: {formatQuantity(movilizado, unit)}</p>
           <p className="text-ink-soft">Pedido: {formatQuantity(pedido, unit)}</p>
         </>
@@ -98,13 +99,14 @@ function SuministrosChart({ suministros, porRecurso, recurso = '' }) {
   }, [suministros, porRecurso, recurso, info]);
 
   const subtitle = recurso
-    ? `${info.label} por mes de adjudicación${info.unit ? ` (${info.unit})` : ''}`
-    : 'Qué parte de lo pedido se movilizó, por recurso (emergencias adjudicadas). Elegí un recurso para ver su evolución por mes.';
+    ? `${info.label}${info.unit ? ` (${info.unit})` : ''} por mes de adjudicación, de las emergencias dadas de alta en el período`
+    : 'Qué parte de lo pedido comprometió el Sistema Nacional, por recurso (emergencias adjudicadas). Elegí un recurso para ver su evolución por mes.';
+  const title = recurso ? `Suministros por mes: ${info.label}` : 'Cobertura por recurso';
   const summary = rows
     .map((row) =>
       recurso
         ? `${formatMonth(row.mes)}: ${formatQuantity(row.value, row.unit)}`
-        : `${row.label} (${row.category}): ${row.porcentaje} % cubierto, ${coverageDetail(row)}`,
+        : `${row.label} (${row.category}): ${formatPercent(row.porcentaje)} cubierto, ${coverageDetail(row)}`,
     )
     .join('. ');
 
@@ -137,7 +139,7 @@ function SuministrosChart({ suministros, porRecurso, recurso = '' }) {
   const renderValue = ({ x = 0, y = 0, width = 0, height = 0, index }) => {
     const row = rows[index];
     if (!row) return null;
-    const text = recurso ? formatQuantity(row.value, row.unit) : `${row.value} %`;
+    const text = recurso ? formatQuantity(row.value, row.unit) : formatPercent(row.value);
     return recurso ? (
       <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fill="#334155">
         {text}
@@ -150,7 +152,7 @@ function SuministrosChart({ suministros, porRecurso, recurso = '' }) {
   };
 
   return (
-    <ChartCard id="chart-suministros" title="Suministros movilizados" summary={subtitle}>
+    <ChartCard id="chart-suministros" title={title} summary={subtitle}>
       {rows.length === 0 ? (
         <EmptyChart>
           {recurso
@@ -200,7 +202,7 @@ function SuministrosChart({ suministros, porRecurso, recurso = '' }) {
                   type="number"
                   domain={[0, 100]}
                   ticks={[0, 25, 50, 75, 100]}
-                  tickFormatter={(value) => `${value} %`}
+                  tickFormatter={formatPercent}
                   tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
                   stroke={CHART_LINE}
                 />

@@ -26,24 +26,6 @@ import {
 
 const GENERAL_COLOR = '#0072bb';
 
-// Etiqueta al final de la barra (sin el ajuste de línea de LabelList, que corta "1 h 35 min").
-function BarEndLabel({ x = 0, y = 0, width = 0, height = 0, value = null }) {
-  if (value === null || value === undefined) return null;
-  return (
-    <text x={x + width + 6} y={y + height / 2} dy="0.35em" fontSize={11} fill="#334155">
-      {formatMinutes(value)}
-    </text>
-  );
-}
-
-BarEndLabel.propTypes = {
-  x: PropTypes.number,
-  y: PropTypes.number,
-  width: PropTypes.number,
-  height: PropTypes.number,
-  value: PropTypes.number,
-};
-
 const typeLabel = (value) => EMERGENCY_TYPES.find((type) => type.value === value)?.label ?? value;
 
 // Un renglón por etapa. `stats[serie]` guarda lo que muestra el tooltip; el valor de la
@@ -125,12 +107,30 @@ function TiemposEtapasChart({ tiempos }) {
     )
     .join('. ');
 
+  // Etiqueta al final de la barra: "3 h 20 min · 4 casos" (sin el ajuste de línea de LabelList,
+  // que corta "1 h 35 min"). `casos` sale de las estadísticas del renglón.
+  const renderEnd = (key, { x = 0, y = 0, width = 0, height = 0, index }) => {
+    const stats = rows[index]?.stats[key];
+    if (!stats || stats.casos === 0) return null;
+    return (
+      <text x={x + width + 6} y={y + height / 2} dy="0.35em" fontSize={11} fill="#334155">
+        {`${formatMinutes(stats.promedioMinutos)} · ${stats.casos} ${stats.casos === 1 ? 'caso' : 'casos'}`}
+      </text>
+    );
+  };
+
   const renderTick = ({ x, y, payload }) => {
     const row = rows.find((item) => item.label === payload.value);
     // En pantallas angostas el rótulo se parte en el "→" para que entre en el eje.
-    const lines = narrow
-      ? payload.value.split(' → ').map((part, i) => (i ? `→ ${part}` : part))
-      : [payload.value];
+    // "Total (solo casos terminados)" también va en dos renglones.
+    const lines = (
+      narrow
+        ? payload.value.split(' → ').map((part, i) => (i ? `→ ${part}` : part))
+        : [payload.value]
+    ).flatMap((line) => {
+      const paren = line.indexOf(' (');
+      return paren === -1 ? [line] : [line.slice(0, paren), line.slice(paren + 1)];
+    });
     if (row?.sinDatos) lines.push(null);
     const offset = -((lines.length - 1) * 0.65) + 0.35;
     return (
@@ -198,7 +198,7 @@ function TiemposEtapasChart({ tiempos }) {
             <BarChart
               data={rows}
               layout="vertical"
-              margin={{ top: 4, right: 56, left: 0, bottom: 0 }}
+              margin={{ top: 4, right: narrow ? 104 : 124, left: 0, bottom: 0 }}
             >
               <CartesianGrid stroke={CHART_LINE} horizontal={false} />
               <XAxis
@@ -226,7 +226,7 @@ function TiemposEtapasChart({ tiempos }) {
                   radius={[0, 4, 4, 0]}
                   maxBarSize={28}
                 >
-                  <LabelList dataKey={item.key} content={BarEndLabel} />
+                  <LabelList dataKey={item.key} content={(props) => renderEnd(item.key, props)} />
                 </Bar>
               ))}
             </BarChart>
@@ -235,7 +235,8 @@ function TiemposEtapasChart({ tiempos }) {
       )}
       <p className="mt-3 text-xs text-ink-muted">
         Este indicador cruza los tiempos de Bonita con el tipo de emergencia de la base local; los
-        casos sin emergencia en la base solo cuentan en el promedio general.
+        casos sin emergencia en la base solo cuentan en el promedio general. Con reabrir, la ventana
+        va de la primera publicación al último cierre.
       </p>
     </ChartCard>
   );

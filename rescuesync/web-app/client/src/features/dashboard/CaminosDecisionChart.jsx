@@ -109,8 +109,8 @@ function CaminosDecisionChart({ caminos }) {
         </div>
       )}
       <p className="mt-2 text-xs text-ink-muted">
-        Reabrir y reformular cuentan decisiones (una emergencia puede tener varias); las otras dos
-        cuentan emergencias adjudicadas.
+        Cubrió todos los lotes cuenta emergencias adjudicadas; continuar, reabrir y reformular
+        cuentan decisiones del coordinador.
       </p>
     </ChartCard>
   );

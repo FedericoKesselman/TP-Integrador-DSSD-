@@ -1,6 +1,8 @@
 import { Boxes, Handshake, Layers, Siren } from 'lucide-react';
 import PropTypes from 'prop-types';
 
+import { formatPercent } from './dashboard-format.js';
+
 function Tile({ icon: Icon, label, value, detail }) {
   return (
     <div className="rounded-2xl border border-line bg-white p-4 shadow-sm">
@@ -23,9 +25,6 @@ Tile.propTypes = {
   detail: PropTypes.string.isRequired,
 };
 
-const percentFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
-const percent = (n) => `${percentFormat.format(n)}%`;
-
 // `tiempos` es null mientras carga o si Bonita falló.
 function KpiTiles({ indicadores, tiempos = null }) {
   const totalEmergencias = indicadores.estadoProyectos.reduce(
@@ -46,26 +45,26 @@ function KpiTiles({ indicadores, tiempos = null }) {
       <Tile
         icon={Handshake}
         label="Resueltas con consorcio"
-        value={emergenciasFinalizadas > 0 ? percent(porcentaje) : '—'}
+        value={emergenciasFinalizadas > 0 ? formatPercent(porcentaje) : '—'}
         detail={`${conConsorcio} de ${emergenciasFinalizadas} finalizadas`}
       />
       <Tile
         icon={Boxes}
         label="Cobertura promedio de lotes"
-        value={promedioPorcentaje === null ? '—' : percent(promedioPorcentaje)}
+        value={promedioPorcentaje === null ? '—' : formatPercent(promedioPorcentaje)}
         detail={
           promedioPorcentaje === null
             ? 'Sin emergencias adjudicadas en el período'
             : `${lotes} ${lotes === 1 ? 'lote' : 'lotes'} de ${emergencias} ${
                 emergencias === 1 ? 'emergencia adjudicada' : 'emergencias adjudicadas'
-              }`
+              } (promedio por lote)`
         }
       />
       <Tile
         icon={Layers}
         label="Casos analizados en Bonita"
         value={tiempos ? String(tiempos.casosAnalizados) : '—'}
-        detail={tiempos ? 'Casos con tiempos medidos' : 'Sin datos de Bonita'}
+        detail={tiempos ? 'Casos iniciados en el período' : 'Sin datos de Bonita'}
       />
     </div>
   );

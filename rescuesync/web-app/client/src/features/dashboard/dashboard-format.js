@@ -21,7 +21,7 @@ export const ETAPA_LABELS = {
   ventana_ofertas: 'Ventana de ofertas',
   validacion_adjudicacion: 'Validación → adjudicación',
   ejecucion: 'Ejecución',
-  total: 'Total',
+  total: 'Total (solo casos terminados)',
 };
 
 // Mismos valores que los tokens de index.css (los gráficos no leen CSS variables).
@@ -85,6 +85,13 @@ const numberFormat = new Intl.NumberFormat('es-AR');
 // 1800, 'litros' -> '1.800 litros' (sin unidad: solo el número)
 export function formatQuantity(value, unit = '') {
   return `${numberFormat.format(value)} ${unit}`.trim();
+}
+
+const percentFormat = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+
+// 66.7 -> '66,7 %'
+export function formatPercent(value) {
+  return `${percentFormat.format(value)} %`;
 }
 
 const monthFormat = new Intl.DateTimeFormat('es-AR', { month: 'short', year: 'numeric' });
