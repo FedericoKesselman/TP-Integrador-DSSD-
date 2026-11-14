@@ -72,13 +72,6 @@ function DashboardPage() {
     [suministros],
   );
   const recursoActivo = recursoOptions.some((option) => option.code === recurso) ? recurso : '';
-  const suministrosFiltrados = useMemo(
-    () =>
-      recursoActivo
-        ? (suministros ?? []).filter((item) => item.recursoCodigo === recursoActivo)
-        : (suministros ?? []),
-    [suministros, recursoActivo],
-  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
@@ -128,7 +121,7 @@ function DashboardPage() {
         >
           <KpiTiles indicadores={indicadores.data} tiempos={tiempos.data} />
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <SuministrosChart suministros={suministrosFiltrados} todos={suministros ?? []} />
+            <SuministrosChart suministros={suministros ?? []} recurso={recursoActivo} />
             <EstadoProyectosChart estadoProyectos={indicadores.data.estadoProyectos} />
           </div>
 

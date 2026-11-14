@@ -1,117 +1,186 @@
-/* El Legend de Recharts recibe funciones que dependen del estado `hidden`. */
-/* eslint-disable react/jsx-no-bind, react/no-unstable-nested-components */
 import PropTypes from 'prop-types';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 
+import { useMediaQuery } from '../../hooks/use-media-query.js';
+
 import ChartCard, { EmptyChart } from './ChartCard.jsx';
 import {
+  BRAND_COLOR,
   CHART_INK_MUTED,
   CHART_LINE,
   formatMonth,
-  getResourceColors,
+  formatQuantity,
   getResourceInfo,
 } from './dashboard-format.js';
 
-// `suministros` ya viene filtrado por recurso (si corresponde).
-function SuministrosChart({ suministros, todos }) {
-  // Colores sobre los datos sin filtrar por recurso: no cambian al filtrar ni al ocultar series.
-  const colors = useMemo(() => getResourceColors(todos.map((s) => s.recursoCodigo)), [todos]);
-  const [hidden, setHidden] = useState(() => new Set());
+// Parte un rótulo largo en renglones de hasta `max` caracteres (sin cortar palabras).
+function wrapLabel(text, max) {
+  const lines = [];
+  text.split(' ').forEach((word) => {
+    const last = lines[lines.length - 1];
+    if (last !== undefined && `${last} ${word}`.length <= max)
+      lines[lines.length - 1] = `${last} ${word}`;
+    else lines.push(word);
+  });
+  return lines;
+}
 
-  const { rows, codes } = useMemo(() => {
-    const byMonth = new Map();
-    const seen = new Set();
-    suministros.forEach(({ mes, recursoCodigo, cantidad }) => {
-      seen.add(recursoCodigo);
-      byMonth.set(mes, { ...byMonth.get(mes), mes, [recursoCodigo]: cantidad });
-    });
-    return {
-      rows: [...byMonth.values()].sort((a, b) => a.mes.localeCompare(b.mes)),
-      codes: [...seen].sort(),
-    };
-  }, [suministros]);
+function SuministrosTooltip({ active = false, payload = [] }) {
+  if (!active || !payload.length) return null;
+  const { label, unit, value, mes } = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-line bg-white px-3 py-2 text-xs shadow-lift">
+      <p className="font-bold text-ink">{label}</p>
+      {mes && <p className="text-ink-soft">{formatMonth(mes)}</p>}
+      <p className="text-ink-soft">{formatQuantity(value, unit)}</p>
+    </div>
+  );
+}
 
-  function toggle(entry) {
-    setHidden((current) => {
-      const next = new Set(current);
-      if (next.has(entry.dataKey)) next.delete(entry.dataKey);
-      else next.add(entry.dataKey);
-      return next;
-    });
-  }
+SuministrosTooltip.propTypes = {
+  active: PropTypes.bool,
+  payload: PropTypes.arrayOf(PropTypes.shape({ payload: PropTypes.shape({}) })),
+};
 
-  const total = suministros.reduce((sum, item) => sum + item.cantidad, 0);
-  const summary = `${total} unidades en ${rows.length} ${rows.length === 1 ? 'mes' : 'meses'}, ${codes.length} ${codes.length === 1 ? 'recurso' : 'recursos'}.`;
+// `suministros` viene sin filtrar; `recurso` ('' = todos) elige la vista.
+function SuministrosChart({ suministros, recurso = '' }) {
+  const narrow = useMediaQuery('(max-width: 640px)');
+  const info = getResourceInfo(recurso);
+
+  // Vista "Todos": total por recurso (nunca se suman recursos distintos entre sí).
+  // Vista de un recurso: cantidad por mes.
+  const rows = useMemo(() => {
+    if (recurso) {
+      return suministros
+        .filter((item) => item.recursoCodigo === recurso)
+        .map((item) => ({
+          mes: item.mes,
+          value: item.cantidad,
+          label: info.label,
+          unit: info.unit,
+        }))
+        .sort((a, b) => a.mes.localeCompare(b.mes));
+    }
+    const totals = new Map();
+    suministros.forEach(({ recursoCodigo, cantidad }) =>
+      totals.set(recursoCodigo, (totals.get(recursoCodigo) ?? 0) + cantidad),
+    );
+    return [...totals]
+      .map(([code, value]) => ({ code, value, ...getResourceInfo(code) }))
+      .sort((a, b) => b.value - a.value);
+  }, [suministros, recurso, info.label, info.unit]);
+
+  const subtitle = recurso
+    ? `${info.label} por mes de adjudicación${info.unit ? ` (${info.unit})` : ''}`
+    : 'Total por recurso en el período. Elegí un recurso para ver su evolución por mes.';
+  const summary = rows
+    .map((row) =>
+      recurso
+        ? `${formatMonth(row.mes)}: ${formatQuantity(row.value, row.unit)}`
+        : `${row.label}: ${formatQuantity(row.value, row.unit)}`,
+    )
+    .join('. ');
+
+  const renderTick = ({ x, y, payload }) => {
+    const lines = wrapLabel(payload.value, narrow ? 16 : 26);
+    return (
+      <text x={x} y={y} textAnchor="end" fontSize={narrow ? 11 : 12} fill="#334155">
+        {lines.map((line, i) => (
+          <tspan key={line} x={x} dy={i === 0 ? `${0.35 - (lines.length - 1) * 0.6}em` : '1.2em'}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    );
+  };
+
+  // Etiqueta con cantidad + unidad, al final de la barra (horizontal) o encima (vertical).
+  const renderValue = ({ x = 0, y = 0, width = 0, height = 0, index }) => {
+    const row = rows[index];
+    if (!row) return null;
+    const text = formatQuantity(row.value, row.unit);
+    return recurso ? (
+      <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={11} fill="#334155">
+        {text}
+      </text>
+    ) : (
+      <text x={x + width + 6} y={y + height / 2} dy="0.35em" fontSize={11} fill="#334155">
+        {text}
+      </text>
+    );
+  };
 
   return (
-    <ChartCard
-      id="chart-suministros"
-      title="Suministros movilizados por mes"
-      summary={`Por mes de adjudicación. Clic en la leyenda para ocultar o mostrar un recurso. ${rows.length ? summary : ''}`}
-    >
+    <ChartCard id="chart-suministros" title="Suministros movilizados" summary={subtitle}>
       {rows.length === 0 ? (
         <EmptyChart>No hay suministros movilizados en este período.</EmptyChart>
       ) : (
         <div
           role="img"
-          aria-label={`Gráfico de barras apiladas. ${summary}`}
-          className="h-80 w-full"
+          aria-label={`Gráfico de barras. ${subtitle}. ${summary}.`}
+          className="w-full"
+          style={{ height: recurso ? 320 : Math.max(240, rows.length * 44 + 40) }}
         >
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={rows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_LINE} vertical={false} />
-              <XAxis
-                dataKey="mes"
-                tickFormatter={formatMonth}
-                tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
-                stroke={CHART_LINE}
-              />
-              <YAxis
-                tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
-                stroke={CHART_LINE}
-                allowDecimals={false}
-              />
-              <Tooltip
-                labelFormatter={formatMonth}
-                formatter={(value, name, item) => [
-                  `${value} ${getResourceInfo(item.dataKey).unit}`.trim(),
-                  name,
-                ]}
-              />
-              <Legend
-                onClick={toggle}
-                wrapperStyle={{ fontSize: 12, cursor: 'pointer' }}
-                formatter={(value, entry) => (
-                  <span style={{ color: hidden.has(entry.dataKey) ? '#94a3b8' : '#334155' }}>
-                    {value}
-                  </span>
-                )}
-              />
-              {codes.map((code) => {
-                const info = getResourceInfo(code);
-                return (
-                  <Bar
-                    key={code}
-                    dataKey={code}
-                    name={info.label}
-                    stackId="suministros"
-                    fill={colors.get(code)}
-                    stroke="#fff"
-                    hide={hidden.has(code)}
-                  />
-                );
-              })}
-            </BarChart>
+            {recurso ? (
+              <BarChart data={rows} margin={{ top: 24, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke={CHART_LINE} vertical={false} />
+                <XAxis
+                  dataKey="mes"
+                  tickFormatter={formatMonth}
+                  tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
+                  stroke={CHART_LINE}
+                />
+                <YAxis
+                  tickFormatter={(value) => formatQuantity(value)}
+                  tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
+                  stroke={CHART_LINE}
+                  allowDecimals={false}
+                  width={56}
+                />
+                <Tooltip content={<SuministrosTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                <Bar dataKey="value" fill={BRAND_COLOR} radius={[4, 4, 0, 0]} maxBarSize={56}>
+                  <LabelList dataKey="value" content={renderValue} />
+                </Bar>
+              </BarChart>
+            ) : (
+              <BarChart
+                data={rows}
+                layout="vertical"
+                margin={{ top: 4, right: narrow ? 84 : 96, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid stroke={CHART_LINE} horizontal={false} />
+                <XAxis
+                  type="number"
+                  tickFormatter={(value) => formatQuantity(value)}
+                  tick={{ fill: CHART_INK_MUTED, fontSize: 12 }}
+                  stroke={CHART_LINE}
+                  allowDecimals={false}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="label"
+                  width={narrow ? 118 : 190}
+                  tick={renderTick}
+                  interval={0}
+                  stroke={CHART_LINE}
+                />
+                <Tooltip content={<SuministrosTooltip />} cursor={{ fill: '#f1f5f9' }} />
+                <Bar dataKey="value" fill={BRAND_COLOR} radius={[0, 4, 4, 0]} maxBarSize={28}>
+                  <LabelList dataKey="value" content={renderValue} />
+                </Bar>
+              </BarChart>
+            )}
           </ResponsiveContainer>
         </div>
       )}
@@ -127,7 +196,7 @@ SuministrosChart.propTypes = {
       cantidad: PropTypes.number,
     }),
   ).isRequired,
-  todos: PropTypes.arrayOf(PropTypes.shape({ recursoCodigo: PropTypes.string })).isRequired,
+  recurso: PropTypes.string,
 };
 
 export default SuministrosChart;
