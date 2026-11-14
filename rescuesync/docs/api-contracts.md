@@ -616,14 +616,29 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
       ]
     }
   ],
-  "coberturaLotes": { "lotes": 3, "promedioPorcentaje": 50 }
+  "coberturaLotes": { "emergencias": 2, "lotes": 3, "promedioPorcentaje": 50 },
+  "caminosDecision": { "todosCubiertos": 1, "continuar": 1, "reabrir": 2, "reformular": 0 }
 }
 ```
 
 - `conConsorcio`: emergencias finalizadas con al menos una oferta vigente de 2 o más ONGs.
-- `coberturaLotes`: por lote, cantidad cubierta (tope = pedida) / `quantity_requested`,
-  promediada sobre todos los lotes (los sin cobertura cuentan 0). Porcentajes con 1 decimal.
-- Sin datos: listas vacías y porcentajes en 0.
+- `coberturaLotes`: cobertura final lograda al adjudicar. Solo cuentan los lotes de
+  emergencias en `adjudicada`, `en_ejecucion` o `finalizada` (las que están en curso, por
+  ejemplo tras reabrir o reformular, entran recién cuando se adjudican). Por lote, cantidad
+  cubierta por ofertas `adjudicada`/`finalizada` (tope = pedida) / `quantity_requested`,
+  promediada sobre esos lotes. `emergencias` = cuántas emergencias aportan lotes. Sin
+  emergencias adjudicadas: `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
+- `caminosDecision`: qué pasó tras la validación cuando el SN no cubrió todos los lotes
+  (camino alternativo). Sobre las emergencias del período:
+  - `todosCubiertos` / `continuar`: emergencias en `adjudicada`, `en_ejecucion` o
+    `finalizada` cuya última validación (`validacion_resumen.todosLosLotesCubiertos`) dio
+    `true` / `false` (con `false` solo se llega a adjudicar eligiendo continuar). Sin
+    `validacion_resumen` no cuentan.
+  - `reabrir` / `reformular`: cantidad de decisiones, contadas en `emergency_status_history`
+    como transiciones `validada` → `convocatoria_abierta` / `validada` → `registrada` (una
+    emergencia puede sumar varias).
+- Porcentajes con 1 decimal. Sin datos: listas vacías, contadores y porcentajes en 0 (salvo
+  `coberturaLotes.promedioPorcentaje`, que es `null`).
 
 ### GET /api/dashboard/tiempos-etapas
 
@@ -696,7 +711,7 @@ Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONG
 
 Rol `auditor`. Query: `formato=json|csv` (obligatorio), `desde` y `hasta` opcionales (mismas
 reglas que en `tiempos-etapas`), `dataset` (obligatorio solo con `csv`): `suministros` |
-`estado-proyectos` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
+`estado-proyectos` | `caminos-decision` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
 El período filtra todo el export con el mismo criterio que `/indicadores` y `/tiempos-etapas`.
 
 - `json`: `{ "generadoAt": "ISO", "periodo": {...}, "indicadores": <igual que
@@ -707,6 +722,7 @@ El período filtra todo el export con el mismo criterio que `/indicadores` y `/t
   comillas o salto de línea van entre comillas dobles; `null` = campo vacío).
   - `suministros`: `mes,recursoCodigo,cantidad`
   - `estado-proyectos`: `estado,id,type,severity,province,municipality,createdAt`
+  - `caminos-decision`: `camino,cantidad` (una fila por camino, en el orden todosCubiertos, continuar, reabrir, reformular)
   - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos`
   - `tiempos-por-tipo`: `tipo,etapa,casos,promedioMinutos,minMinutos,maxMinutos`
   - Con los dos datasets de tiempos, si Bonita falla responde el mismo error que
