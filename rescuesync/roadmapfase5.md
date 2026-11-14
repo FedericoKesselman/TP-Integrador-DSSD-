@@ -319,8 +319,15 @@ Hay que verificar el límite de tamaño del tipo Text para `consolidado`.
 - **Datos de la API de Bonita:** tiempo promedio por etapa (registro →
   publicación, ventana de ofertas, validación → adjudicación, ejecución,
   total), calculado con las tareas cerradas de los casos.
+- **Indicador cruzado (pedido del profesor, 13/11):** tiempos por etapa según
+  tipo de emergencia: el tiempo sale de Bonita y el tipo de la base local,
+  unidos por `emergencies.bonita_case_id`.
+- Período: elige las emergencias por fecha de alta y filtra todos los
+  indicadores y el export. El filtro por recurso es de la pantalla y solo
+  afecta a suministros.
 - Gráficos interactivos (filtros por período y recurso) y exportación CSV y
-  JSON.
+  JSON. Datos de demo: comandos manuales `demo:cargar` / `demo:borrar`
+  (descripción con `[DEMO]`); los tiempos de Bonita no se siembran.
 
 ---
 

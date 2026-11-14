@@ -2,7 +2,7 @@
 // Auditor logueado (req.session.bonita; necesita perfil Administrador en Bonita). Solo GET.
 import { apiGet } from '../bonita/bonita-client.js';
 import { createDomainError } from '../errors.js';
-import { filtrarCasos } from './tiempos-etapas.js';
+import { filtrarCasos, TAREA_VENTANA } from './tiempos-etapas.js';
 
 const PAGE_SIZE = 100;
 
@@ -74,12 +74,19 @@ export async function leerCasosYTareas(session, periodo) {
   const tareas = [];
   // eslint-disable-next-line no-restricted-syntax
   for (const caso of enPeriodo) {
+    const porCaso = filter(['caseId', caso.id]);
     // eslint-disable-next-line no-await-in-loop
-    const archivadas = await getAll(
+    const completadas = await getAll(
       session,
-      `bpm/archivedActivity?${filter(['caseId', caso.id], ['state', 'completed'])}`,
+      `bpm/archivedActivity?${porCaso}&${filter(['state', 'completed'])}`,
     );
-    archivadas.forEach((t) =>
+    // "Cargar ofertas" la interrumpe el temporizador: queda `aborted`, no `completed`.
+    // eslint-disable-next-line no-await-in-loop
+    const abortadas = await getAll(
+      session,
+      `bpm/archivedActivity?${porCaso}&${filter(['state', 'aborted'])}`,
+    );
+    [...completadas, ...abortadas.filter((t) => t.name === TAREA_VENTANA)].forEach((t) =>
       tareas.push({ caseId: caso.id, name: t.name, date: t.reached_state_date }),
     );
   }

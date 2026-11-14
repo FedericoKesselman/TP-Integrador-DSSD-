@@ -589,14 +589,30 @@ es mantenimiento del stock, no un paso del ciclo.
 
 `GET /api/dashboard/indicadores` — rol `auditor` (`401` sin sesión, `403` otro rol).
 Solo datos propios de Postgres; no usa Bonita. Cuentan las ofertas `adjudicada` y
-`finalizada`. El mes de un suministro es el de la fecha de adjudicación de la oferta
-(`adjudicaciones.created_at`, `YYYY-MM`; si hubiera varias, la más reciente). Es la fecha en
+`finalizada`. "Movilizado" es lo que el Sistema Nacional **comprometió**: la `cantidad` de
+`adjudicaciones.reparto` (una fila por ONG y recurso, `{ ongRef, recursoCodigo, cantidad }`,
+guardada al confirmar el compromiso), sumada por `recursoCodigo`. Nunca supera lo ofrecido
+(el SN compromete lo habilitado, con tope en lo ofrecido) y puede ser menor. Una oferta
+sin `reparto` aporta 0. El mes de un suministro es el de la fecha de adjudicación de la oferta
+(`adjudicaciones.created_at`, `YYYY-MM`, **mes calendario de Argentina**: una adjudicación del
+30/9 a las 23:30 en Argentina cae en `2026-09` aunque en UTC ya sea octubre). Es la fecha en
 que el municipio eligió la oferta, no cambia al finalizarla. En `estadoProyectos` solo
 aparecen los estados que tienen emergencias.
 
+Query opcional: `desde` y `hasta` (`YYYY-MM-DD`, inclusive; `400` si el formato es inválido o
+`desde` > `hasta`). El período elige las **emergencias por su fecha de alta**
+(`emergencies.created_at`, como fecha de Argentina) y los cuatro indicadores se calculan solo
+sobre esas emergencias: sus ofertas (suministros, agrupados igual por mes de adjudicación), las
+finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tiempos-etapas`
+(fecha de inicio del caso de Bonita, que se crea al dar de alta la emergencia).
+
 ```json
 {
+  "periodo": { "desde": "2026-11-01", "hasta": "2026-11-30" },
   "suministrosMovilizados": [{ "mes": "2026-11", "recursoCodigo": "raciones", "cantidad": 180 }],
+  "suministrosPorRecurso": [
+    { "recursoCodigo": "agua-potable", "pedido": 4000, "movilizado": 3000, "porcentajeCubierto": 75 }
+  ],
   "resolucionConsorcios": { "emergenciasFinalizadas": 2, "conConsorcio": 1, "porcentaje": 50 },
   "estadoProyectos": [
     {
@@ -608,14 +624,41 @@ aparecen los estados que tienen emergencias.
       ]
     }
   ],
-  "coberturaLotes": { "lotes": 3, "promedioPorcentaje": 50 }
+  "coberturaLotes": { "emergencias": 2, "lotes": 3, "promedioPorcentaje": 50 },
+  "caminosDecision": { "todosCubiertos": 1, "continuar": 1, "reabrir": 2, "reformular": 0 }
 }
 ```
 
+- `suministrosMovilizados`: por mes de adjudicación y recurso, la suma de lo comprometido
+  por el SN (`reparto`) en las ofertas `adjudicada`/`finalizada` de las emergencias del período.
+- `suministrosPorRecurso`: por recurso, cuánto se pidió y cuánto se movilizó, para comparar
+  recursos con unidades distintas en una misma escala (%). Mismo universo que
+  `coberturaLotes`: emergencias del período en `adjudicada`, `en_ejecucion` o
+  `finalizada`. `pedido` = suma de `quantity_requested` de sus lotes; `movilizado` = suma de lo
+  comprometido por el SN (`reparto`) de ese recurso en las ofertas `adjudicada`/`finalizada`
+  de esas emergencias (puede superar lo pedido); `porcentajeCubierto` = suma por emergencia y
+  recurso de lo cubierto con tope en lo pedido / `pedido` × 100 (1 decimal, máximo 100). El
+  `reparto` es por recurso, no por lote, por eso el tope se aplica por emergencia y recurso. Ordenado por `porcentajeCubierto` ascendente (lo que más falta
+  primero) y luego por `recursoCodigo`. Sin datos: `[]`. La unidad no viaja: sale del catálogo
+  de recursos del cliente.
 - `conConsorcio`: emergencias finalizadas con al menos una oferta vigente de 2 o más ONGs.
-- `coberturaLotes`: por lote, cantidad cubierta (tope = pedida) / `quantity_requested`,
-  promediada sobre todos los lotes (los sin cobertura cuentan 0). Porcentajes con 1 decimal.
-- Sin datos: listas vacías y porcentajes en 0.
+- `coberturaLotes`: cobertura final lograda al adjudicar. Solo cuentan los lotes de
+  emergencias en `adjudicada`, `en_ejecucion` o `finalizada` (las que están en curso, por
+  ejemplo tras reabrir o reformular, entran recién cuando se adjudican). Por lote, cantidad
+  **ofrecida** por ofertas `adjudicada`/`finalizada` (tope = pedida) / `quantity_requested`,
+  promediada sobre esos lotes (a diferencia de `suministrosPorRecurso`, no usa el `reparto` del
+  SN: este es por recurso y no por lote). `emergencias` = cuántas emergencias aportan lotes. Sin
+  emergencias adjudicadas: `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
+- `caminosDecision`: qué pasó tras la validación (camino alternativo). Sobre las
+  emergencias del período:
+  - `todosCubiertos`: emergencias en `adjudicada`, `en_ejecucion` o `finalizada` cuya última
+    validación (`validacion_resumen.todosLosLotesCubiertos`) dio `true` (fueron directo a
+    adjudicar). Sin `validacion_resumen` no cuentan.
+  - `continuar` / `reabrir` / `reformular`: cantidad de decisiones del coordinador en
+    "Decidir como Continuar", registradas en la tabla `emergency_decisiones` (una fila por
+    decisión confirmada; una emergencia puede sumar varias).
+- Porcentajes con 1 decimal. Sin datos: listas vacías, contadores y porcentajes en 0 (salvo
+  `coberturaLotes.promedioPorcentaje`, que es `null`).
 
 ### GET /api/dashboard/tiempos-etapas
 
@@ -637,6 +680,11 @@ Respuesta `200`:
   "etapas": [
     { "etapa": "registro_publicacion", "casos": 3, "promedioMinutos": 3.5,
       "minMinutos": 2.1, "maxMinutos": 5 }
+  ],
+  "porTipo": [
+    { "tipo": "inundacion", "casosAnalizados": 3,
+      "etapas": [ { "etapa": "registro_publicacion", "casos": 2, "promedioMinutos": 3,
+                    "minMinutos": 2.1, "maxMinutos": 3.9 } ] }
   ]
 }
 ```
@@ -645,7 +693,10 @@ Respuesta `200`:
 este orden:
 
 - `registro_publicacion`: "Registrar Emergencia" → "Publicar Convocatoria".
-- `ventana_ofertas`: "Publicar Convocatoria" → "Notificar Cierre de Convocatoria a ONGS".
+- `ventana_ofertas`: "Publicar Convocatoria" → fin de "Cargar ofertas (Parcial / Completa)", la
+  tarea que el temporizador interrumpe al vencer la convocatoria (queda archivada con estado
+  `aborted`; también se acepta `completed`). Se usa esa tarea y no "Notificar Cierre de
+  Convocatoria a ONGS" porque esta última hoy falla en el proceso real y nunca se completa.
 - `validacion_adjudicacion`: "Validar Ofertas" → "Adjudicar Ofertas".
 - `ejecucion`: "Etapa Ejecución" → "Liberar recursos".
 - `total`: inicio → fin del caso (solo casos terminados).
@@ -659,6 +710,13 @@ Reglas:
   `maxMinutos` en `null`.
 - El filtro por recurso no aplica (Bonita no conoce recursos).
 
+`porTipo` (indicador cruzado Bonita + base local): los mismos cálculos de `etapas`, separados
+por el tipo de la emergencia (`emergencies.type`), uniendo cada caso con su emergencia por
+`emergencies.bonita_case_id` = id del caso. Solo aparecen los tipos con al menos un caso, en
+el orden `inundacion`, `incendio`, `terremoto`, `otro`; cada uno trae siempre las 5 etapas.
+Los casos sin emergencia en la base no entran en `porTipo` (sí en `etapas` y
+`casosAnalizados`). Sin casos: `porTipo` = `[]`.
+
 Errores (siempre `{ "message": "..." }`):
 
 - `401` si Bonita responde `401` con la sesión del usuario: `"Tu sesión de Bonita venció.
@@ -669,24 +727,31 @@ Errores (siempre `{ "message": "..." }`):
 
 Fuente de las fechas: los casos salen de `bpm/case` (abiertos) y `bpm/archivedCase`
 (terminados; `end_date` solo si `state` es `completed`) de todas las versiones del proceso;
-las tareas, de `bpm/archivedActivity` con `state=completed`, usando `reached_state_date`.
-Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONGS").
+las tareas, de `bpm/archivedActivity` con `state=completed` (más, solo para "Cargar ofertas
+(Parcial / Completa)", las de estado `aborted`), usando `reached_state_date`. Incluye tareas de
+servicio. Con reabrir/reformular, la ventana va de la primera publicación al último cierre.
 
 ### GET /api/dashboard/export
 
 Rol `auditor`. Query: `formato=json|csv` (obligatorio), `desde` y `hasta` opcionales (mismas
 reglas que en `tiempos-etapas`), `dataset` (obligatorio solo con `csv`): `suministros` |
-`estado-proyectos` | `tiempos-etapas`. `400` si falta o no es válido.
+`suministros-por-recurso` | `estado-proyectos` | `caminos-decision` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
+El período filtra todo el export con el mismo criterio que `/indicadores` y `/tiempos-etapas`.
 
 - `json`: `{ "generadoAt": "ISO", "periodo": {...}, "indicadores": <igual que
-  /indicadores>, "tiemposEtapas": <igual que /tiempos-etapas> | null, "avisos": [] }`. Si
-  Bonita falla, `tiemposEtapas` = `null` y se agrega un aviso en `avisos`; responde `200`
-  igual.
-- `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma.
+  /indicadores>, "tiemposEtapas": <igual que /tiempos-etapas> | null, "avisos": ["..."] }`.
+  Si Bonita falla (cualquier error de `tiempos-etapas`), `tiemposEtapas` = `null` y se agrega
+  el mensaje del error en `avisos`; responde `200` igual.
+- `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma (valores con coma,
+  comillas o salto de línea van entre comillas dobles; `null` = campo vacío).
   - `suministros`: `mes,recursoCodigo,cantidad`
+  - `suministros-por-recurso`: `recursoCodigo,pedido,movilizado,porcentajeCubierto`
   - `estado-proyectos`: `estado,id,type,severity,province,municipality,createdAt`
-  - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos` (si Bonita falla
-    con este dataset: `502`).
+  - `caminos-decision`: `camino,cantidad` (una fila por camino, en el orden todosCubiertos, continuar, reabrir, reformular)
+  - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos`
+  - `tiempos-por-tipo`: `tipo,etapa,casos,promedioMinutos,minMinutos,maxMinutos`
+  - Con los dos datasets de tiempos, si Bonita falla responde el mismo error que
+    `tiempos-etapas` (`401` o `502`).
 
 Headers: `Content-Disposition: attachment`; nombre
 `rescuesync-dashboard-<dataset|completo>-<YYYY-MM-DD>.<ext>`.
