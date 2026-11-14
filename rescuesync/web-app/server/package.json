@@ -11,6 +11,7 @@
     "test:sn": "node tests/sn.integration.js",
     "demo:cargar": "node scripts/demo.js cargar",
     "demo:borrar": "node scripts/demo.js borrar",
+    "demo:bonita": "node scripts/demo-bonita.js",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
     "format": "prettier --write .",
