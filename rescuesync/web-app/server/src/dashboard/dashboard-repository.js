@@ -68,14 +68,12 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
       `SELECT
          (SELECT count(*) FROM emergencies e WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('e.id')}
             AND e.validacion_resumen->>'todosLosLotesCubiertos' = 'true')::int AS todos_cubiertos,
-         (SELECT count(*) FROM emergencies e WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('e.id')}
-            AND e.validacion_resumen->>'todosLosLotesCubiertos' = 'false')::int AS continuar,
-         (SELECT count(*) FROM emergency_status_history h
-          WHERE h.from_status = 'validada' AND h.to_status = 'convocatoria_abierta'
-            AND ${EN_PERIODO('h.emergency_id')})::int AS reabrir,
-         (SELECT count(*) FROM emergency_status_history h
-          WHERE h.from_status = 'validada' AND h.to_status = 'registrada'
-            AND ${EN_PERIODO('h.emergency_id')})::int AS reformular`,
+         (SELECT count(*) FROM emergency_decisiones d
+          WHERE d.camino = 'continuar' AND ${EN_PERIODO('d.emergency_id')})::int AS continuar,
+         (SELECT count(*) FROM emergency_decisiones d
+          WHERE d.camino = 'reabrir' AND ${EN_PERIODO('d.emergency_id')})::int AS reabrir,
+         (SELECT count(*) FROM emergency_decisiones d
+          WHERE d.camino = 'reformular' AND ${EN_PERIODO('d.emergency_id')})::int AS reformular`,
       params,
     ),
   ]);

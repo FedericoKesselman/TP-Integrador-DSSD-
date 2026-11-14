@@ -955,6 +955,11 @@ try {
   assert.equal(incompleta.lotes.find((lote) => lote.resourceCode === 'raciones').cubierta, 900);
   const decisionUrl = `/emergencies/${e2.id}/decision`;
   const decidir = (body, as = COORD) => call(decisionUrl, { method: 'POST', as, body });
+  const decisionesDe = (camino) =>
+    count(
+      'SELECT count(*) AS n FROM emergency_decisiones WHERE emergency_id = $1 AND camino = $2',
+      [e2.id, camino],
+    );
 
   await api(403, decisionUrl, { method: 'POST', as: OP, body: { camino: 'continuar' } });
   assert.equal((await decidir({ camino: 'borrar' })).status, 400);
@@ -989,6 +994,16 @@ try {
   });
   assert.equal(await statusOf(e2.id), 'validada');
   assert.deepEqual(await ofertaStatuses(e2.id), ['validada', 'validada']);
+  assert.equal(await decisionesDe('continuar'), 1, 'solo la decisión confirmada queda registrada');
+  assert.equal(
+    (
+      await pool.query(
+        "SELECT decided_by FROM emergency_decisiones WHERE emergency_id = $1 AND camino = 'continuar'",
+        [e2.id],
+      )
+    ).rows[0].decided_by,
+    'coord',
+  );
 
   // REABRIR con Bonita caído: se compensa (estado, ofertas, ronda e historial vuelven).
   const antes = (
@@ -1006,6 +1021,7 @@ try {
     antes.convocatoria_ronda,
   );
   assert.deepEqual((await history(e2.id)).slice(-1), ['convocatoria_cerrada>validada']);
+  assert.equal(await decisionesDe('reabrir'), 0, 'reabrir fallido no se registra');
 
   // REABRIR bien: las ofertas se mantienen (vuelven a registrada), ronda nueva, nueva duración.
   bonita.setPending(e2.caseId, ['Decidir como Continuar', 'Publicar Convocatoria']);
@@ -1015,6 +1031,7 @@ try {
     body: { camino: 'reabrir', duracionMinutos: 5 },
   });
   assert.equal(reabierta.status, 'convocatoria_abierta');
+  assert.equal(await decisionesDe('reabrir'), 1);
   assert.deepEqual(bonita.executionsOf(e2.caseId, 'Decidir como Continuar').at(-1).body, {
     camino: 'reabrir',
   });
@@ -1084,6 +1101,7 @@ try {
     await count("SELECT count(*) AS n FROM oferta_historial WHERE changed_by LIKE 'reformular:%'"),
     0,
   );
+  assert.equal(await decisionesDe('reformular'), 0, 'reformular fallido no se registra');
 
   // REFORMULAR bien: ofertas retiradas con snapshot, aviso a cada ONG con oferta, lotes a rearmar.
   bonita.setPending(e2.caseId, ['Decidir como Continuar']);
@@ -1093,6 +1111,7 @@ try {
     body: { camino: 'reformular' },
   });
   assert.equal(reformulada.status, 'registrada');
+  assert.equal(await decisionesDe('reformular'), 1);
   assert.deepEqual(bonita.executionsOf(e2.caseId, 'Decidir como Continuar').at(-1).body, {
     camino: 'reformular',
   });

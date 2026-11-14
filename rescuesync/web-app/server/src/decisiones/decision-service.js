@@ -1,5 +1,5 @@
 import { completePendingTasks } from '../bonita/bonita-client.js';
-import { withTransaction } from '../db.js';
+import pool, { withTransaction } from '../db.js';
 import { getEmergencyById } from '../emergencies/emergencies-repository.js';
 import {
   changeEmergencyStatus,
@@ -43,6 +43,14 @@ async function completeInBonita(session, emergency, taskNames, inputs) {
       502,
     );
   }
+}
+
+// Registra una decisión CONFIRMADA (Bonita ya avanzó). `db` es el pool o un client.
+function registrarDecision(db, emergencyId, camino, changedBy) {
+  return db.query(
+    'INSERT INTO emergency_decisiones (emergency_id, camino, decided_by) VALUES ($1, $2, $3)',
+    [emergencyId, camino, changedBy],
+  );
 }
 
 // REABRIR: las ofertas validadas vuelven a `registrada`, la emergencia vuelve a
@@ -154,6 +162,7 @@ async function applyReformular(emergencyId, changedBy, afterEffects) {
     await changeEmergencyStatus(client, emergency, 'registrada', changedBy);
 
     await afterEffects();
+    await registrarDecision(client, emergencyId, 'reformular', changedBy);
     return ofertaIds.length;
   });
 }
@@ -178,6 +187,7 @@ export async function decide({ emergencyId, camino, duracionMinutos, session, ch
 
   if (camino === 'continuar') {
     await completeInBonita(session, emergency, [TASK_DECIDIR], decidirInput);
+    await registrarDecision(pool, emergencyId, camino, changedBy);
     return { emergencyId, camino, status: 'validada' };
   }
 
@@ -203,5 +213,6 @@ export async function decide({ emergencyId, camino, duracionMinutos, session, ch
     await revertReabrir(emergencyId, moved);
     throw error;
   }
+  await registrarDecision(pool, emergencyId, camino, changedBy);
   return { emergencyId, camino, status: 'convocatoria_abierta', duracionMinutos };
 }

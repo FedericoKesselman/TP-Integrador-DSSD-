@@ -517,17 +517,29 @@ async function insertarEmergencia(client, em, ongIds) {
         .reduce((acc, [, , habilitada]) => acc + habilitada, 0);
       return { loteId: loteIds[i], pedida, cubierta: Math.min(suma, pedida) };
     });
+    const todosLosLotesCubiertos = cobertura.every((c) => c.cubierta >= c.pedida);
     await client.query(
       'UPDATE emergencies SET validacion_resumen = $2::jsonb, updated_at = $3 WHERE id = $1',
-      [
-        emergencyId,
-        JSON.stringify({
-          todosLosLotesCubiertos: cobertura.every((c) => c.cubierta >= c.pedida),
-          cobertura,
-        }),
-        momento[em.estado],
-      ],
+      [emergencyId, JSON.stringify({ todosLosLotesCubiertos, cobertura }), momento[em.estado]],
     );
+
+    // Decisiones del coordinador (emergency_decisiones): el desvío (reabrir/reformular) se decidió
+    // al pasar por validada; si la validación vigente no cubrió todo y se adjudicó, siguió con
+    // "continuar" (una hora después de esa validación).
+    const decisiones = [];
+    if (em.desvio) decisiones.push([em.desvio.tipo, hs(em.createdAt, em.desvio.horas[0])]);
+    if (!todosLosLotesCubiertos && pasos.includes('adjudicada')) {
+      decisiones.push(['continuar', hs(momento.validada, 1)]);
+    }
+    // eslint-disable-next-line no-restricted-syntax
+    for (const [camino, cuando] of decisiones) {
+      // eslint-disable-next-line no-await-in-loop
+      await client.query(
+        `INSERT INTO emergency_decisiones (emergency_id, camino, decided_by, decided_at)
+         VALUES ($1, $2, 'demo', $3)`,
+        [emergencyId, camino, cuando],
+      );
+    }
   }
 
   // Adjudicación (con la fecha del paso "adjudicada") y finalización de cada oferta elegida.

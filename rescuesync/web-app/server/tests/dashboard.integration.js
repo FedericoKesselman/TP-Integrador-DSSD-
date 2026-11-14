@@ -448,11 +448,12 @@ try {
     );
     return id;
   };
-  const transicion = (id, from, to) =>
-    q(
-      'INSERT INTO emergency_status_history (emergency_id, from_status, to_status) VALUES ($1,$2,$3)',
-      [id, from, to],
-    );
+  const decision = (id, camino) =>
+    q('INSERT INTO emergency_decisiones (emergency_id, camino, decided_by) VALUES ($1,$2,$3)', [
+      id,
+      camino,
+      'coord',
+    ]);
   const eA = await enMarzo('adjudicada', true);
   const eB = await enMarzo('convocatoria_abierta', false); // en curso: no cuenta
   const eC = await enMarzo('en_ejecucion', false);
@@ -460,13 +461,12 @@ try {
   await oferta(eA, 'adjudicada', [a], [[await lote(eA, 'raciones', 100), 40]]);
   await lote(eB, 'mantas', 100); // sin cubrir, pero la emergencia no está adjudicada
   await oferta(eC, 'adjudicada', [b], [[await lote(eC, 'mantas', 50), 50]]);
-  await transicion(eA, 'validada', 'convocatoria_abierta');
-  await transicion(eA, 'convocatoria_cerrada', 'validada');
-  await transicion(eA, 'validada', 'convocatoria_abierta'); // dos reabrir en la misma emergencia
-  await transicion(eB, 'validada', 'convocatoria_abierta');
-  await transicion(eC, 'validada', 'registrada');
-  await transicion(eC, 'registrada', 'convocatoria_abierta'); // no es reabrir
-  await transicion(e1, 'validada', 'convocatoria_abierta'); // fuera de marzo
+  await decision(eA, 'reabrir');
+  await decision(eA, 'reabrir'); // dos reabrir en la misma emergencia: suman las dos
+  await decision(eB, 'reabrir'); // cuenta aunque la emergencia siga en curso
+  await decision(eC, 'reformular');
+  await decision(eC, 'continuar');
+  await decision(e1, 'reabrir'); // fuera de marzo
   const dm = await indicadores(marzo);
   assert.deepEqual(dm.coberturaLotes, { emergencias: 2, lotes: 2, promedioPorcentaje: 70 });
   assert.deepEqual(dm.caminosDecision, {
@@ -475,7 +475,7 @@ try {
     reabrir: 3,
     reformular: 1,
   });
-  // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → ni continuar ni cubiertos.
+  // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → no cuenta en cubiertos.
   assert.deepEqual((await indicadores('?desde=2026-09-01&hasta=2026-09-30')).caminosDecision, {
     todosCubiertos: 0,
     continuar: 0,
