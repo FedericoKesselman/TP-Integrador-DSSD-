@@ -589,8 +589,13 @@ es mantenimiento del stock, no un paso del ciclo.
 
 `GET /api/dashboard/indicadores` — rol `auditor` (`401` sin sesión, `403` otro rol).
 Solo datos propios de Postgres; no usa Bonita. Cuentan las ofertas `adjudicada` y
-`finalizada`. El mes de un suministro es el de la fecha de adjudicación de la oferta
-(`adjudicaciones.created_at`, `YYYY-MM`; si hubiera varias, la más reciente). Es la fecha en
+`finalizada`. "Movilizado" es lo que el Sistema Nacional **comprometió**: la `cantidad` de
+`adjudicaciones.reparto` (una fila por ONG y recurso, `{ ongRef, recursoCodigo, cantidad }`,
+guardada al confirmar el compromiso), sumada por `recursoCodigo`. Nunca supera lo ofrecido
+(el SN compromete lo habilitado, con tope en lo ofrecido) y puede ser menor. Una oferta
+sin `reparto` aporta 0. El mes de un suministro es el de la fecha de adjudicación de la oferta
+(`adjudicaciones.created_at`, `YYYY-MM`, **mes calendario de Argentina**: una adjudicación del
+30/9 a las 23:30 en Argentina cae en `2026-09` aunque en UTC ya sea octubre). Es la fecha en
 que el municipio eligió la oferta, no cambia al finalizarla. En `estadoProyectos` solo
 aparecen los estados que tienen emergencias.
 
@@ -624,21 +629,25 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
 }
 ```
 
+- `suministrosMovilizados`: por mes de adjudicación y recurso, la suma de lo comprometido
+  por el SN (`reparto`) en las ofertas `adjudicada`/`finalizada` de las emergencias del período.
 - `suministrosPorRecurso`: por recurso, cuánto se pidió y cuánto se movilizó, para comparar
   recursos con unidades distintas en una misma escala (%). Mismo universo que
-  `coberturaLotes`: lotes de emergencias del período en `adjudicada`, `en_ejecucion` o
-  `finalizada`. `pedido` = suma de `quantity_requested` de esos lotes; `movilizado` = suma de
-  lo ofrecido por ofertas `adjudicada`/`finalizada` en esos lotes (puede superar lo pedido);
-  `porcentajeCubierto` = suma por lote de lo cubierto con tope en lo pedido / `pedido` × 100
-  (1 decimal, máximo 100). Ordenado por `porcentajeCubierto` ascendente (lo que más falta
+  `coberturaLotes`: emergencias del período en `adjudicada`, `en_ejecucion` o
+  `finalizada`. `pedido` = suma de `quantity_requested` de sus lotes; `movilizado` = suma de lo
+  comprometido por el SN (`reparto`) de ese recurso en las ofertas `adjudicada`/`finalizada`
+  de esas emergencias (puede superar lo pedido); `porcentajeCubierto` = suma por emergencia y
+  recurso de lo cubierto con tope en lo pedido / `pedido` × 100 (1 decimal, máximo 100). El
+  `reparto` es por recurso, no por lote, por eso el tope se aplica por emergencia y recurso. Ordenado por `porcentajeCubierto` ascendente (lo que más falta
   primero) y luego por `recursoCodigo`. Sin datos: `[]`. La unidad no viaja: sale del catálogo
   de recursos del cliente.
 - `conConsorcio`: emergencias finalizadas con al menos una oferta vigente de 2 o más ONGs.
 - `coberturaLotes`: cobertura final lograda al adjudicar. Solo cuentan los lotes de
   emergencias en `adjudicada`, `en_ejecucion` o `finalizada` (las que están en curso, por
   ejemplo tras reabrir o reformular, entran recién cuando se adjudican). Por lote, cantidad
-  cubierta por ofertas `adjudicada`/`finalizada` (tope = pedida) / `quantity_requested`,
-  promediada sobre esos lotes. `emergencias` = cuántas emergencias aportan lotes. Sin
+  **ofrecida** por ofertas `adjudicada`/`finalizada` (tope = pedida) / `quantity_requested`,
+  promediada sobre esos lotes (a diferencia de `suministrosPorRecurso`, no usa el `reparto` del
+  SN: este es por recurso y no por lote). `emergencias` = cuántas emergencias aportan lotes. Sin
   emergencias adjudicadas: `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
 - `caminosDecision`: qué pasó tras la validación (camino alternativo). Sobre las
   emergencias del período:
@@ -684,7 +693,10 @@ Respuesta `200`:
 este orden:
 
 - `registro_publicacion`: "Registrar Emergencia" → "Publicar Convocatoria".
-- `ventana_ofertas`: "Publicar Convocatoria" → "Notificar Cierre de Convocatoria a ONGS".
+- `ventana_ofertas`: "Publicar Convocatoria" → fin de "Cargar ofertas (Parcial / Completa)", la
+  tarea que el temporizador interrumpe al vencer la convocatoria (queda archivada con estado
+  `aborted`; también se acepta `completed`). Se usa esa tarea y no "Notificar Cierre de
+  Convocatoria a ONGS" porque esta última hoy falla en el proceso real y nunca se completa.
 - `validacion_adjudicacion`: "Validar Ofertas" → "Adjudicar Ofertas".
 - `ejecucion`: "Etapa Ejecución" → "Liberar recursos".
 - `total`: inicio → fin del caso (solo casos terminados).
@@ -715,8 +727,9 @@ Errores (siempre `{ "message": "..." }`):
 
 Fuente de las fechas: los casos salen de `bpm/case` (abiertos) y `bpm/archivedCase`
 (terminados; `end_date` solo si `state` es `completed`) de todas las versiones del proceso;
-las tareas, de `bpm/archivedActivity` con `state=completed`, usando `reached_state_date`.
-Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONGS").
+las tareas, de `bpm/archivedActivity` con `state=completed` (más, solo para "Cargar ofertas
+(Parcial / Completa)", las de estado `aborted`), usando `reached_state_date`. Incluye tareas de
+servicio. Con reabrir/reformular, la ventana va de la primera publicación al último cierre.
 
 ### GET /api/dashboard/export
 
