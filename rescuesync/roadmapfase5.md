@@ -355,6 +355,18 @@ completo (12 endpoints)**. No hay ramas sin mergear en el repo de código.
 Formato: `[ ]` pendiente · `[~]` construida y probada por separado (Bonita simulado; SN simulado con `npm test` o real con `npm run test:sn`, ambos en `web-app/server`), falta la prueba de integración de «Se prueba con» · `[x]` hecha y probada · **Est.** en horas (estimación de
 planificación; las horas reales van a la bitácora E5-90).
 
+### Avisos de configuración y hallazgos (14/11, Ignacio)
+
+Probado con el proceso real y 11 casos de Bonita (detalle en el PDF del dashboard, secciones 8 a 10). Estas notas no toman ninguna tarea:
+
+- **Bonita, proceso desplegado (E5-40):** cada uno tiene que desplegar en su Studio el pool "Gestionar Emergencia" **1.8** (Desplegar → solo el proceso, sin la organización; ambiente Local) con los 5 parámetros cargados. **No volver a desplegar una versión que ya está desplegada**: puede reemplazarla y borrar sus casos. Con la 1.0 vieja la ventana duraba siempre 2 h.
+- **E5-31 no está implementada** (liberada): `duracionConvocatoria` queda en `null`, "Publicar Convocatoria" no tiene el input en su contrato y el timer no la lee; toda ventana dura 2 min.
+- **E5-33 bloquea el ciclo:** al vencer el timer, "Notificar Cierre de Convocatoria a ONGS" falla con `409` porque la web-app no acepta el aviso con la emergencia en `convocatoria_abierta`. Falta el `PATCH` a `convocatoria_cerrada` antes del aviso.
+- **`.env` del server (E5-06):** hacen falta `BONITA_INTEGRATION_KEY` (mismo valor que el parámetro `claveIntegracion` de Bonita), `SN_INTEGRATION_USERNAME=rescuesync-integracion` y `SN_INTEGRATION_PASSWORD` (la clave de la cuenta de integración en Render; también va en `snClave` de Bonita).
+- **Migraciones:** `node-pg-migrate` pasó a dependencies (la imagen de producción no instalaba devDependencies y `migrate:up` fallaba en Docker). Al bajar main: `docker compose up -d --build -V server` y `docker compose exec server npm run migrate:up` (migración nueva `emergency_decisiones`).
+- **Datos de demo:** `docker compose exec server npm run demo:cargar` / `demo:borrar` (emergencias `[DEMO]`, solo datos propios) y `npm run demo:bonita` en `web-app/server` con `DEMO_CLAVE` (casos reales en Bonita vía la web-app).
+- **Informe (E5-92):** sigue redactado como revisión externa ("el ZIP recibido", estado al 12/11). Cada apartado tiene que pasar a primera persona del grupo y al estado real; la sección 10 (dashboard) ya está actualizada.
+
 ### Fase 0 — Cimientos compartidos
 
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
