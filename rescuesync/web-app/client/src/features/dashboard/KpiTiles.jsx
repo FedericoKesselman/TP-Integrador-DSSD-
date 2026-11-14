@@ -51,7 +51,7 @@ function KpiTiles({ indicadores, tiempos = null }) {
       />
       <Tile
         icon={Boxes}
-        label="Cobertura al adjudicar"
+        label="Cobertura promedio de lotes"
         value={promedioPorcentaje === null ? '—' : percent(promedioPorcentaje)}
         detail={
           promedioPorcentaje === null

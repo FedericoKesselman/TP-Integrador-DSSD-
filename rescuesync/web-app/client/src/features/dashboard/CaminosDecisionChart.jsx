@@ -22,8 +22,7 @@ const CAMINOS = [
   { key: 'reformular', label: 'Reformular lotes' },
 ];
 
-const SUBTITLE =
-  'Cómo siguió cada emergencia tras la validación: adjudicación directa o camino alternativo de Bonita.';
+const SUBTITLE = 'Estado tras validación: adjudicación directa o camino alternativo de Bonita.';
 
 function CaminosTooltip({ active = false, payload = [] }) {
   if (!active || !payload.length) return null;
