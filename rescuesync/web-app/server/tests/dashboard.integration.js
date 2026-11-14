@@ -123,6 +123,7 @@ try {
   // Vacío
   const vacio = await (await get('auditor')).json();
   assert.deepEqual(vacio.suministrosMovilizados, []);
+  assert.deepEqual(vacio.suministrosPorRecurso, []);
   assert.equal(vacio.resolucionConsorcios.porcentaje, 0);
   assert.deepEqual(vacio.coberturaLotes, { emergencias: 0, lotes: 0, promedioPorcentaje: null });
   assert.deepEqual(vacio.caminosDecision, {
@@ -211,6 +212,12 @@ try {
   // Solo cuentan las emergencias adjudicadas: E1 100% y E2 50% (el lote de E3, registrada, no).
   assert.deepEqual(data.coberturaLotes, { emergencias: 2, lotes: 2, promedioPorcentaje: 75 });
 
+  // E1: un lote de 100 con dos ofertas (60+70): pedido una sola vez, movilizado 130, tope 100.
+  // E2: 100 pedidos, 50 ofrecidos. E3 (registrada) y la oferta no_seleccionada no cuentan.
+  assert.deepEqual(data.suministrosPorRecurso, [
+    { recursoCodigo: 'raciones', pedido: 200, movilizado: 180, porcentajeCubierto: 75 },
+  ]);
+
   assert.deepEqual(data.periodo, { desde: null, hasta: null });
 
   // Período: se elige por fecha de alta de la emergencia (día de Argentina, UTC-3, inclusivo).
@@ -253,6 +260,11 @@ try {
     lotes: 1,
     cobertura: 100,
   });
+  // Período de E1 solo: movilizado supera lo pedido, porcentaje topado en 100.
+  assert.deepEqual(
+    (await indicadores('?desde=2026-09-10&hasta=2026-09-10')).suministrosPorRecurso,
+    [{ recursoCodigo: 'raciones', pedido: 100, movilizado: 130, porcentajeCubierto: 100 }],
+  );
   // E2 queda el 30/9 en Argentina aunque en UTC ya sea 1/10.
   assert.deepEqual(
     resumen(await indicadores('?desde=2026-09-30&hasta=2026-09-30')).suministros,
@@ -273,6 +285,7 @@ try {
   const sinDatos = await indicadores('?desde=2027-01-01&hasta=2027-01-31');
   assert.deepEqual(sinDatos.estadoProyectos, []);
   assert.equal(sinDatos.coberturaLotes.promedioPorcentaje, null);
+  assert.deepEqual(sinDatos.suministrosPorRecurso, []);
   // 400: formato inválido, día inexistente, desde > hasta.
   assert.equal((await get('auditor', '?desde=ayer')).status, 400);
   assert.equal((await get('auditor', '?hasta=2026-02-30')).status, 400);
@@ -475,6 +488,11 @@ try {
     reabrir: 3,
     reformular: 1,
   });
+  // Dos recursos, ordenados por lo que más falta: raciones 40/100 y mantas 50/50 (eB no cuenta).
+  assert.deepEqual(dm.suministrosPorRecurso, [
+    { recursoCodigo: 'raciones', pedido: 100, movilizado: 40, porcentajeCubierto: 40 },
+    { recursoCodigo: 'mantas', pedido: 50, movilizado: 50, porcentajeCubierto: 100 },
+  ]);
   // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → no cuenta en cubiertos.
   assert.deepEqual((await indicadores('?desde=2026-09-01&hasta=2026-09-30')).caminosDecision, {
     todosCubiertos: 0,
@@ -489,6 +507,15 @@ try {
     res.text,
     'camino,cantidad\ntodosCubiertos,1\ncontinuar,1\nreabrir,3\nreformular,1\n',
   );
+  res = await csv('suministros-por-recurso', { sid: 'vencida' }, marzo.replace('?', '&'));
+  assert.equal(res.r.status, 200);
+  assert.equal(res.r.headers.get('content-disposition'), adjunto('suministros-por-recurso', 'csv'));
+  assert.equal(
+    res.text,
+    'recursoCodigo,pedido,movilizado,porcentajeCubierto\nraciones,100,40,40\nmantas,50,50,100\n',
+  );
+  res = await csv('suministros-por-recurso', {}, '&desde=2027-01-01&hasta=2027-01-31');
+  assert.equal(res.text, 'recursoCodigo,pedido,movilizado,porcentajeCubierto\n');
   assert.equal((await call('/export?formato=csv&dataset=caminos')).status, 400);
 
   // Bonita no responde → 502 (tiempos-etapas y csv) y aviso (export json).

@@ -1,6 +1,7 @@
 // Armado del export del dashboard (contrato: api-contracts.md, Dashboard → export).
 export const DATASETS = [
   'suministros',
+  'suministros-por-recurso',
   'estado-proyectos',
   'caminos-decision',
   'tiempos-etapas',
@@ -27,6 +28,13 @@ export function datasetCsv(dataset, indicadores, tiempos) {
     return toCsv(
       headers,
       indicadores.suministrosMovilizados.map((s) => headers.map((k) => s[k])),
+    );
+  }
+  if (dataset === 'suministros-por-recurso') {
+    const headers = ['recursoCodigo', 'pedido', 'movilizado', 'porcentajeCubierto'];
+    return toCsv(
+      headers,
+      indicadores.suministrosPorRecurso.map((s) => headers.map((k) => s[k])),
     );
   }
   if (dataset === 'estado-proyectos') {

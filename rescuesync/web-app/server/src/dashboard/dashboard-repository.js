@@ -53,9 +53,9 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
       params,
     ),
     pool.query(
-      `SELECT l.id, l.emergency_id, l.quantity_requested,
-              LEAST(COALESCE(SUM(ol.quantity_offered) FILTER (
-                WHERE o.status IN ${OFERTAS_VIGENTES}), 0), l.quantity_requested) AS cubierta
+      `SELECT l.id, l.emergency_id, l.resource_code, l.quantity_requested,
+              COALESCE(SUM(ol.quantity_offered) FILTER (
+                WHERE o.status IN ${OFERTAS_VIGENTES}), 0) AS movilizado
        FROM lotes l
        LEFT JOIN oferta_lotes ol ON ol.lote_id = l.id
        LEFT JOIN ofertas o ON o.id = ol.oferta_id
@@ -93,7 +93,17 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
     });
     porEstado.set(row.status, entry);
   });
-  const ratios = cobertura.rows.map((row) => Number(row.cubierta) / row.quantity_requested);
+  // Una fila por lote (sin fan-out); acá se topa lo cubierto y se agrupa por recurso.
+  const cubierta = (row) => Math.min(Number(row.movilizado), row.quantity_requested);
+  const ratios = cobertura.rows.map((row) => cubierta(row) / row.quantity_requested);
+  const porRecurso = new Map();
+  cobertura.rows.forEach((row) => {
+    const r = porRecurso.get(row.resource_code) ?? { pedido: 0, movilizado: 0, cubierto: 0 };
+    r.pedido += row.quantity_requested;
+    r.movilizado += Number(row.movilizado);
+    r.cubierto += cubierta(row);
+    porRecurso.set(row.resource_code, r);
+  });
 
   return {
     periodo: { desde, hasta },
@@ -102,6 +112,18 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
       recursoCodigo: row.recurso_codigo,
       cantidad: row.cantidad,
     })),
+    suministrosPorRecurso: [...porRecurso]
+      .map(([recursoCodigo, r]) => ({
+        recursoCodigo,
+        pedido: r.pedido,
+        movilizado: r.movilizado,
+        porcentajeCubierto: round1((r.cubierto / r.pedido) * 100),
+      }))
+      .sort(
+        (x, y) =>
+          x.porcentajeCubierto - y.porcentajeCubierto ||
+          (x.recursoCodigo < y.recursoCodigo ? -1 : 1),
+      ),
     resolucionConsorcios: {
       emergenciasFinalizadas: finalizadas,
       conConsorcio,
