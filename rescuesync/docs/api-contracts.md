@@ -594,8 +594,16 @@ Solo datos propios de Postgres; no usa Bonita. Cuentan las ofertas `adjudicada` 
 que el municipio eligió la oferta, no cambia al finalizarla. En `estadoProyectos` solo
 aparecen los estados que tienen emergencias.
 
+Query opcional: `desde` y `hasta` (`YYYY-MM-DD`, inclusive; `400` si el formato es inválido o
+`desde` > `hasta`). El período elige las **emergencias por su fecha de alta**
+(`emergencies.created_at`, como fecha de Argentina) y los cuatro indicadores se calculan solo
+sobre esas emergencias: sus ofertas (suministros, agrupados igual por mes de adjudicación), las
+finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tiempos-etapas`
+(fecha de inicio del caso de Bonita, que se crea al dar de alta la emergencia).
+
 ```json
 {
+  "periodo": { "desde": "2026-11-01", "hasta": "2026-11-30" },
   "suministrosMovilizados": [{ "mes": "2026-11", "recursoCodigo": "raciones", "cantidad": 180 }],
   "resolucionConsorcios": { "emergenciasFinalizadas": 2, "conConsorcio": 1, "porcentaje": 50 },
   "estadoProyectos": [
@@ -637,6 +645,11 @@ Respuesta `200`:
   "etapas": [
     { "etapa": "registro_publicacion", "casos": 3, "promedioMinutos": 3.5,
       "minMinutos": 2.1, "maxMinutos": 5 }
+  ],
+  "porTipo": [
+    { "tipo": "inundacion", "casosAnalizados": 3,
+      "etapas": [ { "etapa": "registro_publicacion", "casos": 2, "promedioMinutos": 3,
+                    "minMinutos": 2.1, "maxMinutos": 3.9 } ] }
   ]
 }
 ```
@@ -659,6 +672,13 @@ Reglas:
   `maxMinutos` en `null`.
 - El filtro por recurso no aplica (Bonita no conoce recursos).
 
+`porTipo` (indicador cruzado Bonita + base local): los mismos cálculos de `etapas`, separados
+por el tipo de la emergencia (`emergencies.type`), uniendo cada caso con su emergencia por
+`emergencies.bonita_case_id` = id del caso. Solo aparecen los tipos con al menos un caso, en
+el orden `inundacion`, `incendio`, `terremoto`, `otro`; cada uno trae siempre las 5 etapas.
+Los casos sin emergencia en la base no entran en `porTipo` (sí en `etapas` y
+`casosAnalizados`). Sin casos: `porTipo` = `[]`.
+
 Errores (siempre `{ "message": "..." }`):
 
 - `401` si Bonita responde `401` con la sesión del usuario: `"Tu sesión de Bonita venció.
@@ -676,17 +696,21 @@ Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONG
 
 Rol `auditor`. Query: `formato=json|csv` (obligatorio), `desde` y `hasta` opcionales (mismas
 reglas que en `tiempos-etapas`), `dataset` (obligatorio solo con `csv`): `suministros` |
-`estado-proyectos` | `tiempos-etapas`. `400` si falta o no es válido.
+`estado-proyectos` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
+El período filtra todo el export con el mismo criterio que `/indicadores` y `/tiempos-etapas`.
 
 - `json`: `{ "generadoAt": "ISO", "periodo": {...}, "indicadores": <igual que
-  /indicadores>, "tiemposEtapas": <igual que /tiempos-etapas> | null, "avisos": [] }`. Si
-  Bonita falla, `tiemposEtapas` = `null` y se agrega un aviso en `avisos`; responde `200`
-  igual.
-- `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma.
+  /indicadores>, "tiemposEtapas": <igual que /tiempos-etapas> | null, "avisos": ["..."] }`.
+  Si Bonita falla (cualquier error de `tiempos-etapas`), `tiemposEtapas` = `null` y se agrega
+  el mensaje del error en `avisos`; responde `200` igual.
+- `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma (valores con coma,
+  comillas o salto de línea van entre comillas dobles; `null` = campo vacío).
   - `suministros`: `mes,recursoCodigo,cantidad`
   - `estado-proyectos`: `estado,id,type,severity,province,municipality,createdAt`
-  - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos` (si Bonita falla
-    con este dataset: `502`).
+  - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos`
+  - `tiempos-por-tipo`: `tipo,etapa,casos,promedioMinutos,minMinutos,maxMinutos`
+  - Con los dos datasets de tiempos, si Bonita falla responde el mismo error que
+    `tiempos-etapas` (`401` o `502`).
 
 Headers: `Content-Disposition: attachment`; nombre
 `rescuesync-dashboard-<dataset|completo>-<YYYY-MM-DD>.<ext>`.

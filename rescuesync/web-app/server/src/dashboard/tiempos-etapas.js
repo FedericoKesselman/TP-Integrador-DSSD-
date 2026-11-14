@@ -8,6 +8,8 @@
 // artificial), así que las diferencias son exactas salvo que haya un cambio de horario
 // de verano entre las dos puntas.
 
+import { EMERGENCY_TYPE_VALUES } from '../../../shared/emergency-validation.js';
+
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 // Etapas del contrato, siempre en este orden. `total` usa inicio y fin del caso.
@@ -74,21 +76,10 @@ function minutos(inicio, fin) {
   return (fin - inicio) / 60000;
 }
 
-export function calcularTiemposEtapas(casos, tareas, periodo = {}) {
-  const { desde = null, hasta = null } = periodo;
-  const enPeriodo = filtrarCasos(casos, { desde, hasta });
-
-  const porCaso = new Map(enPeriodo.map((c) => [String(c.id), new Map()]));
-  tareas.forEach((t) => {
-    const nombres = porCaso.get(String(t.caseId));
-    if (!nombres) return;
-    const fechas = nombres.get(t.name) ?? [];
-    fechas.push(toMs(t.date));
-    nombres.set(t.name, fechas);
-  });
-
-  const etapas = ETAPAS.map(({ etapa, desde: nombreIni, hasta: nombreFin }) => {
-    const valores = enPeriodo
+// Las 5 etapas para un conjunto de casos; `porCaso` = caso → (tarea → fechas).
+function calcularEtapas(casos, porCaso) {
+  return ETAPAS.map(({ etapa, desde: nombreIni, hasta: nombreFin }) => {
+    const valores = casos
       .map((c) => {
         if (!nombreIni) return c.end ? minutos(toMs(c.start), toMs(c.end)) : null;
         const nombres = porCaso.get(String(c.id));
@@ -110,6 +101,38 @@ export function calcularTiemposEtapas(casos, tareas, periodo = {}) {
       maxMinutos: round1(Math.max(...valores)),
     };
   });
+}
 
-  return { periodo: { desde, hasta }, casosAnalizados: enPeriodo.length, etapas };
+// `tipos`: Map caseId (string) → tipo de emergencia, para el cruce `porTipo`. Los casos que
+// no están en el mapa no entran en `porTipo`.
+export function calcularTiemposEtapas(casos, tareas, periodo = {}, tipos = new Map()) {
+  const { desde = null, hasta = null } = periodo;
+  const enPeriodo = filtrarCasos(casos, { desde, hasta });
+
+  const porCaso = new Map(enPeriodo.map((c) => [String(c.id), new Map()]));
+  tareas.forEach((t) => {
+    const nombres = porCaso.get(String(t.caseId));
+    if (!nombres) return;
+    const fechas = nombres.get(t.name) ?? [];
+    fechas.push(toMs(t.date));
+    nombres.set(t.name, fechas);
+  });
+
+  const porTipo = EMERGENCY_TYPE_VALUES.map((tipo) => ({
+    tipo,
+    casos: enPeriodo.filter((c) => tipos.get(String(c.id)) === tipo),
+  }))
+    .filter(({ casos: delTipo }) => delTipo.length > 0)
+    .map(({ tipo, casos: delTipo }) => ({
+      tipo,
+      casosAnalizados: delTipo.length,
+      etapas: calcularEtapas(delTipo, porCaso),
+    }));
+
+  return {
+    periodo: { desde, hasta },
+    casosAnalizados: enPeriodo.length,
+    etapas: calcularEtapas(enPeriodo, porCaso),
+    porTipo,
+  };
 }
