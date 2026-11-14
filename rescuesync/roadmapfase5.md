@@ -385,7 +385,7 @@ planificación; las horas reales van a la bitácora E5-90).
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
 |---|---|---|---|---|---|---|
 | [x] E5-30 | Preparación: parámetros del proceso (5.4), variables nuevas, borrar la tarea huérfana "Cópia de Informar Cierre Y Liberar Cursos", crear el README del repo de Bonita | 3 | E5-02 | — | P1 | Joaquín 10/11 · Agustín 12/11 |
-| [x] E5-31 | Timer parametrizable: input `duracionConvocatoria` en el contrato de "Publicar Convocatoria", operación que lo guarda en la variable, y timer que la lee (en minutos) | 2.5 | E5-30 | E5-18, E5-51 | P1 | Agustín 12/11 |
+| [ ] E5-31 | Timer parametrizable: input `duracionConvocatoria` en el contrato de "Publicar Convocatoria", operación que lo guarda en la variable, y timer que la lee (en minutos) | 2.5 | E5-30 | E5-18, E5-51 | P1 | |
 | [x] E5-32 | Conectores de notificaciones de `master` adaptados a la clave de integración y a las URLs por parámetro (`notificarConvocatoria`, `cierreConvocatoria`) | 2 | E5-30 | E5-12 | P1 | Agustín 12/11 |
 | [ ] E5-33 | "Notificar Cierre de Convocatoria a ONGS": `PATCH` estado `convocatoria_cerrada` y aviso. "Obtener Ofertas": `GET …/consolidado` guardado en la variable | 3.5 | E5-30 | E5-13, E5-14 | P1 | Pendiente: falta agregar el `PATCH` de estado antes del aviso |
 | [ ] E5-34 | "Validar Ofertas": login al SN (`snToken`), `POST /validaciones`, operación que setea `todosLosLotesCubiertos`, `POST …/validaciones` a la web-app. Timeouts de 90 s por el arranque en frío de Render | 5 | E5-33 | E5-15, E5-05 | P1 | |
