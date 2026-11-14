@@ -24,6 +24,15 @@ function DashboardPage() {
 
   const periodoInvalido = Boolean(periodo.desde && periodo.hasta && periodo.desde > periodo.hasta);
 
+  // El título del index.html es el del formulario; en esta pantalla se reemplaza.
+  useEffect(() => {
+    const anterior = document.title;
+    document.title = 'Dashboard | RescueSync';
+    return () => {
+      document.title = anterior;
+    };
+  }, []);
+
   // Cada cambio de período vuelve a pedir ambos endpoints (en paralelo, sin pisarse).
   useEffect(() => {
     if (periodoInvalido) return undefined;
