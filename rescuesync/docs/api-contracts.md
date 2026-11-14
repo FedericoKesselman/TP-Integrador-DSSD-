@@ -605,6 +605,9 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
 {
   "periodo": { "desde": "2026-11-01", "hasta": "2026-11-30" },
   "suministrosMovilizados": [{ "mes": "2026-11", "recursoCodigo": "raciones", "cantidad": 180 }],
+  "suministrosPorRecurso": [
+    { "recursoCodigo": "agua-potable", "pedido": 4000, "movilizado": 3000, "porcentajeCubierto": 75 }
+  ],
   "resolucionConsorcios": { "emergenciasFinalizadas": 2, "conConsorcio": 1, "porcentaje": 50 },
   "estadoProyectos": [
     {
@@ -621,6 +624,15 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
 }
 ```
 
+- `suministrosPorRecurso`: por recurso, cuánto se pidió y cuánto se movilizó, para comparar
+  recursos con unidades distintas en una misma escala (%). Mismo universo que
+  `coberturaLotes`: lotes de emergencias del período en `adjudicada`, `en_ejecucion` o
+  `finalizada`. `pedido` = suma de `quantity_requested` de esos lotes; `movilizado` = suma de
+  lo ofrecido por ofertas `adjudicada`/`finalizada` en esos lotes (puede superar lo pedido);
+  `porcentajeCubierto` = suma por lote de lo cubierto con tope en lo pedido / `pedido` × 100
+  (1 decimal, máximo 100). Ordenado por `porcentajeCubierto` ascendente (lo que más falta
+  primero) y luego por `recursoCodigo`. Sin datos: `[]`. La unidad no viaja: sale del catálogo
+  de recursos del cliente.
 - `conConsorcio`: emergencias finalizadas con al menos una oferta vigente de 2 o más ONGs.
 - `coberturaLotes`: cobertura final lograda al adjudicar. Solo cuentan los lotes de
   emergencias en `adjudicada`, `en_ejecucion` o `finalizada` (las que están en curso, por
@@ -710,7 +722,7 @@ Incluye tareas de servicio (por ejemplo, "Notificar Cierre de Convocatoria a ONG
 
 Rol `auditor`. Query: `formato=json|csv` (obligatorio), `desde` y `hasta` opcionales (mismas
 reglas que en `tiempos-etapas`), `dataset` (obligatorio solo con `csv`): `suministros` |
-`estado-proyectos` | `caminos-decision` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
+`suministros-por-recurso` | `estado-proyectos` | `caminos-decision` | `tiempos-etapas` | `tiempos-por-tipo`. `400` si falta o no es válido.
 El período filtra todo el export con el mismo criterio que `/indicadores` y `/tiempos-etapas`.
 
 - `json`: `{ "generadoAt": "ISO", "periodo": {...}, "indicadores": <igual que
@@ -720,6 +732,7 @@ El período filtra todo el export con el mismo criterio que `/indicadores` y `/t
 - `csv`: un archivo por dataset, UTF-8 con encabezado, separador coma (valores con coma,
   comillas o salto de línea van entre comillas dobles; `null` = campo vacío).
   - `suministros`: `mes,recursoCodigo,cantidad`
+  - `suministros-por-recurso`: `recursoCodigo,pedido,movilizado,porcentajeCubierto`
   - `estado-proyectos`: `estado,id,type,severity,province,municipality,createdAt`
   - `caminos-decision`: `camino,cantidad` (una fila por camino, en el orden todosCubiertos, continuar, reabrir, reformular)
   - `tiempos-etapas`: `etapa,casos,promedioMinutos,minMinutos,maxMinutos`
