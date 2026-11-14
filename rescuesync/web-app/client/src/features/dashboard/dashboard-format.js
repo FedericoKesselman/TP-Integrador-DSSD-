@@ -50,23 +50,46 @@ export function getStatusColor(status) {
   return TONE_HEX[getStatusCopy(status).tone];
 }
 
+// Colores de los recursos: hues bien separados, legibles sobre blanco y sin rojo puro
+// (reservado a errores/severidad).
+const RESOURCE_PALETTE = [
+  '#0072bb', // azul institucional
+  '#e67e22', // naranja
+  '#2a9d8f', // verde azulado
+  '#8e44ad', // violeta
+  '#7cb342', // verde lima
+  '#d6336c', // magenta
+  '#37bbed', // celeste
+  '#8d6e63', // marrón
+  '#e0b000', // dorado
+  '#3d5a80', // azul pizarra
+  '#1b9e5a', // verde
+  '#5b4bdb', // índigo
+  '#6b7a2f', // oliva
+];
+
 const RESOURCES = new Map(
-  RESOURCE_CATEGORIES.flatMap((category) =>
-    category.resources.map((resource, index) => [
-      resource.id,
-      {
-        label: resource.label,
-        unit: resource.unit,
-        // Color de la categoría; dentro de ella baja la opacidad para distinguir recursos.
-        color: category.color,
-        opacity: Math.max(0.45, 1 - index * 0.14),
-      },
-    ]),
-  ),
+  RESOURCE_CATEGORIES.flatMap((category) => category.resources).map((resource, index) => [
+    resource.id,
+    {
+      label: resource.label,
+      unit: resource.unit,
+      orden: index,
+    },
+  ]),
 );
 
 export function getResourceInfo(code) {
-  return RESOURCES.get(code) ?? { label: code, unit: '', color: CHART_INK_MUTED, opacity: 1 };
+  return RESOURCES.get(code) ?? { label: code, unit: '', orden: Infinity };
+}
+
+// Recurso → color para los recursos presentes en los datos, en orden de catálogo: hasta 13
+// recursos visibles nunca repiten color.
+export function getResourceColors(codes) {
+  const distintos = [...new Set(codes)].sort(
+    (a, b) => getResourceInfo(a).orden - getResourceInfo(b).orden,
+  );
+  return new Map(distintos.map((code, i) => [code, RESOURCE_PALETTE[i % RESOURCE_PALETTE.length]]));
 }
 
 const monthFormat = new Intl.DateTimeFormat('es-AR', { month: 'short', year: 'numeric' });

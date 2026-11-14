@@ -14,10 +14,18 @@ import {
 } from 'recharts';
 
 import ChartCard, { EmptyChart } from './ChartCard.jsx';
-import { CHART_INK_MUTED, CHART_LINE, formatMonth, getResourceInfo } from './dashboard-format.js';
+import {
+  CHART_INK_MUTED,
+  CHART_LINE,
+  formatMonth,
+  getResourceColors,
+  getResourceInfo,
+} from './dashboard-format.js';
 
 // `suministros` ya viene filtrado por recurso (si corresponde).
-function SuministrosChart({ suministros }) {
+function SuministrosChart({ suministros, todos }) {
+  // Colores sobre los datos sin filtrar por recurso: no cambian al filtrar ni al ocultar series.
+  const colors = useMemo(() => getResourceColors(todos.map((s) => s.recursoCodigo)), [todos]);
   const [hidden, setHidden] = useState(() => new Set());
 
   const { rows, codes } = useMemo(() => {
@@ -97,8 +105,7 @@ function SuministrosChart({ suministros }) {
                     dataKey={code}
                     name={info.label}
                     stackId="suministros"
-                    fill={info.color}
-                    fillOpacity={info.opacity}
+                    fill={colors.get(code)}
                     stroke="#fff"
                     hide={hidden.has(code)}
                   />
@@ -120,6 +127,7 @@ SuministrosChart.propTypes = {
       cantidad: PropTypes.number,
     }),
   ).isRequired,
+  todos: PropTypes.arrayOf(PropTypes.shape({ recursoCodigo: PropTypes.string })).isRequired,
 };
 
 export default SuministrosChart;

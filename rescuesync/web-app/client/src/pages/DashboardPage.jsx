@@ -119,7 +119,7 @@ function DashboardPage() {
         >
           <KpiTiles indicadores={indicadores.data} tiempos={tiempos.data} />
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-            <SuministrosChart suministros={suministrosFiltrados} />
+            <SuministrosChart suministros={suministrosFiltrados} todos={suministros ?? []} />
             <EstadoProyectosChart estadoProyectos={indicadores.data.estadoProyectos} />
           </div>
 
