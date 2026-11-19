@@ -1189,6 +1189,45 @@ try {
   assert.equal((await decidir({ camino: 'reformular' })).status, 200, 'reformular sin ofertas');
   assert.equal(await statusOf(e2.id), 'registrada');
 
+  // Una oferta retirada al reformular, si la ONG la edita en la convocatoria
+  // nueva, vuelve a `registrada` y entra al consolidado de esa ronda.
+  // Un renglón que quedó de una oferta retirada no bloquea el rearmado de lotes.
+  const loteViejo = await pool.query('SELECT id FROM lotes WHERE emergency_id = $1 LIMIT 1', [
+    e2.id,
+  ]);
+  await pool.query(
+    'INSERT INTO oferta_lotes (oferta_id, lote_id, quantity_offered) VALUES ($1, $2, 10)',
+    [ofertas2.B.id, loteViejo.rows[0].id],
+  );
+  bonita.setPending(e2.caseId, ['Generar Lotes de Necesidades', 'Publicar Convocatoria']);
+  const rearmados = await api(201, `/emergencies/${e2.id}/lotes`, {
+    method: 'POST',
+    as: COORD,
+    body: {
+      lotes: [{ resourceType: 'Raciones', resourceCode: 'raciones', quantityRequested: 200 }],
+    },
+  });
+  await api(200, `/emergencies/${e2.id}/convocatoria`, {
+    method: 'POST',
+    as: COORD,
+    body: { duracionMinutos: 10 },
+  });
+  await api(200, `/ofertas/${ofertas2.A.id}`, {
+    method: 'PUT',
+    as: ongA,
+    body: { items: [{ loteId: rearmados.lotes[0].id, quantityOffered: 200 }] },
+  });
+  assert.deepEqual(await ofertaStatuses(e2.id), ['registrada', 'retirada']);
+  await internal(200, `/emergencies/${e2.id}/estado`, {
+    method: 'PATCH',
+    body: { estado: 'convocatoria_cerrada' },
+  });
+  assert.deepEqual(
+    (await internal(200, `/emergencies/${e2.id}/consolidado`)).ofertas.map((o) => o.ofertaId),
+    [ofertas2.A.id],
+    'la oferta retirada y reeditada entra al consolidado',
+  );
+
   // =========================================================================
   // 9. Inventario: único camino web-app → SN (E5-23)
   // =========================================================================

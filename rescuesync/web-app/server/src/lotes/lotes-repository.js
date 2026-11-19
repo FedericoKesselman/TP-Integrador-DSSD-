@@ -31,6 +31,16 @@ export async function saveLotesForEmergency(emergencyId, lotesList) {
       );
     }
 
+    // Con la emergencia en `registrada` solo puede haber ofertas retiradas: si
+    // alguna conservó renglones (p. ej. editada antes de reformular), se borran
+    // para que no bloqueen el borrado de los lotes viejos (ON DELETE RESTRICT).
+    await client.query(
+      `DELETE FROM oferta_lotes
+       WHERE lote_id IN (SELECT id FROM lotes WHERE emergency_id = $1)
+         AND oferta_id IN (SELECT id FROM ofertas WHERE status = 'retirada')`,
+      [emergencyId],
+    );
+
     // Limpiar lotes previos de esta emergencia para guardar la lista actualizada
     await client.query('DELETE FROM lotes WHERE emergency_id = $1', [emergencyId]);
 

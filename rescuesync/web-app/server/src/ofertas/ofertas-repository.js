@@ -272,9 +272,12 @@ export async function updateOwnOferta(ofertaId, ongRef, changedBy, payload) {
       [ofertaId, versionResult.rows[0].next_version, previousSnapshot, changedBy],
     );
 
+    // Si la oferta fue retirada al reformular, editarla en la convocatoria nueva
+    // la vuelve a `registrada` para que entre al consolidado de esta ronda.
     await client.query(
       `UPDATE ofertas
-       SET observations = $2
+       SET observations = $2,
+           status = CASE WHEN status = 'retirada' THEN 'registrada' ELSE status END
        WHERE id = $1`,
       [ofertaId, payload.observations?.trim() || null],
     );
