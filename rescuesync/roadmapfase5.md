@@ -445,8 +445,8 @@ Probado con el proceso real y 11 casos de Bonita (detalle en el PDF del dashboar
 | [ ] E5-70 | **Prueba end-to-end del ciclo feliz** con el SN en Render: alta → lotes → convocatoria (timer corto) → ofertas (parcial y consorcio) → vence → validación → adjudicación → compromiso → ejecución → finalización → cierre. Verificar el stock del SN antes y después | 4 | E5-22, E5-40, E5-52, E5-53, E5-55, E5-57 | — | P1 | |
 | [ ] E5-71 | Caminos alternativos: sin cobertura total → continuar, reabrir y reformular **con ofertas ya cargadas**; caso borde de 0 ofertas | 4 | E5-70 | — | P1 | |
 | [ ] E5-72 | Camino de error: provocar el `409` en el compromiso (ONG con stock comprometido en otra emergencia) y comprobar el retorno a "Adjudicar Ofertas" y la ausencia de avisos | 2 | E5-70 | — | P1 | |
-| [ ] E5-73 | Prueba de concurrencia contra Render (dos adjudicaciones en paralelo sobre el mismo stock): nunca sobre-asigna | 2 | E5-05 | — | P2 | |
-| [ ] E5-74 | Permisos por rol: los 4 perfiles ven solo sus pantallas; `401` sin sesión y `403` con rol equivocado en cada endpoint nuevo | 2 | E5-52, E5-53, E5-55, E5-56, E5-57, E5-63 | — | P1 | |
+| [ ] E5-73 | Prueba de concurrencia contra Render (dos adjudicaciones en paralelo sobre el mismo stock): nunca sobre-asigna | 2 | E5-05 | — | P2 | Camilo 19/11 |
+| [ ] E5-74 | Permisos por rol: los 4 perfiles ven solo sus pantallas; `401` sin sesión y `403` con rol equivocado en cada endpoint nuevo | 2 | E5-52, E5-53, E5-55, E5-56, E5-57, E5-63 | — | P1 | Camilo 19/11 · se prueba con las pantallas en [~] (sin Bonita completo) |
 | [ ] E5-75 | Datos de demo: correr varios casos completos (con ventanas de 2 minutos) para que el dashboard tenga contenido, y escribir el guion de demo | 2.5 | E5-70 | — | P2 | |
 
 ### Fase 6 — Documentación, informe y entrega
