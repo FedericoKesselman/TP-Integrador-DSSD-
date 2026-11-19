@@ -453,7 +453,7 @@ Probado con el proceso real y 11 casos de Bonita (detalle en el PDF del dashboar
 
 | ID | Tarea | Est. | Necesita | Se prueba con | Prio | Tomada por |
 |---|---|---|---|---|---|---|
-| [ ] E5-80 | Informe: arquitectura general, diagrama de componentes y flujo de integración orquestada | 3 | E5-01, E5-02 | — | P1 | Camilo 19/11 |
+| [x] E5-80 | Informe: arquitectura general, diagrama de componentes y flujo de integración orquestada | 3 | E5-01, E5-02 | — | P1 | Camilo 19/11 · sección 3 del informe reescrita (3.1–3.5): componentes, flujo orquestado en 12 pasos, comunicación y seguridad entre componentes, fuentes de verdad y consistencia |
 | [x] E5-81 | Informe: apartado del Sistema Nacional (rol, endpoints, locking, despliegue) | 2 | E5-01, E5-05 | — | P1 | Camilo 19/11 · sección 8 del informe reescrita (8.1–8.6) |
 | [ ] E5-82 | Informe: apartado de Bonita (proceso, timer, caminos alternativos, conectores, parámetros) | 2 | E5-01, E5-40 | — | P1 | |
 | [ ] E5-83 | Informe: apartado del backend de la web-app (API, estados, integración, inventario como excepción justificada) | 2 | E5-01, E5-22, E5-23 | — | P1 | |
@@ -462,7 +462,7 @@ Probado con el proceso real y 11 casos de Bonita (detalle en el PDF del dashboar
 | [ ] E5-86 | Informe: modelo de proceso de la Entrega 1 vs. el final, con los desvíos justificados (por ejemplo, compromiso antes de notificar) | 3 | E5-01, E5-40 | — | P1 | |
 | [ ] E5-87 | Informe: matriz de cumplimiento (cada requisito del enunciado → dónde se cumple y cómo se verificó) | 3 | E5-01, E5-70 | — | P1 | |
 | [ ] E5-88 | Informe: gestión del proyecto (Gantt, desvíos, cómo se usó IA) | 2 | E5-01, E5-90 | — | P1 | |
-| [ ] E5-89 | Informe: bibliografía con citas rigurosas | 2 | E5-01 | — | P1 | Camilo 19/11 |
+| [x] E5-89 | Informe: bibliografía con citas rigurosas | 2 | E5-01 | — | P1 | Camilo 19/11 · sección 18 reescrita en APA 7 (18.1 documentación del proyecto, 18.2 bibliografía y documentación técnica, con URLs verificadas) |
 | [ ] E5-90 | **Gantt final** (completar las filas de la Entrega 5 con horas reales, desvíos y tareas no planificadas) a partir de la bitácora | 2 | E5-75 | — | P1 | |
 | [ ] E5-91 | `README.md` raíz, `CLAUDE.md` (el SN deja de ser "no se codea"), README del SN y del repo de Bonita, `.env.example` final | 3 | E5-06, E5-40 | — | P1 | |
 | [ ] E5-92 | Revisión final del informe: coherencia, figuras, referencias y exportación a PDF | 3 | E5-80, E5-81, E5-82, E5-83, E5-84, E5-85, E5-86, E5-87, E5-88, E5-89 | — | P1 | |
