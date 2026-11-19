@@ -3,21 +3,21 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STUDIO_APP=${BONITA_STUDIO_APP:-/Applications/BonitaStudioCommunity-2025.2-u0.app}
 DOCKER=${DOCKER_BIN:-/Applications/Docker.app/Contents/Resources/bin/docker}
-if [ -z "${BONITA_NOTIFICATION_TOKEN:-}" ]; then
-  BONITA_NOTIFICATION_TOKEN=$("$DOCKER" compose -f "$SCRIPT_DIR/../../web-app/docker-compose.yml" exec -T server node -e 'process.stdout.write(process.env.BONITA_NOTIFICATION_TOKEN || "")' 2>/dev/null || true)
+if [ -z "${BONITA_INTEGRATION_KEY:-}" ]; then
+  BONITA_INTEGRATION_KEY=$("$DOCKER" compose -f "$SCRIPT_DIR/../../web-app/docker-compose.yml" exec -T server node -e 'process.stdout.write(process.env.BONITA_INTEGRATION_KEY || "")' 2>/dev/null || true)
 fi
-if [ -z "${BONITA_NOTIFICATION_TOKEN:-}" ]; then
+if [ -z "${BONITA_INTEGRATION_KEY:-}" ]; then
   ENV_FILE="$SCRIPT_DIR/../../web-app/server/.env"
   if [ -f "$ENV_FILE" ]; then
-    BONITA_NOTIFICATION_TOKEN=$(sed -n 's/^BONITA_NOTIFICATION_TOKEN=//p' "$ENV_FILE" | tail -n 1)
+    BONITA_INTEGRATION_KEY=$(sed -n 's/^BONITA_INTEGRATION_KEY=//p' "$ENV_FILE" | tail -n 1)
   fi
 fi
 : "${RESCUESYNC_BACKEND_URL:=http://localhost:4000}"
-: "${BONITA_NOTIFICATION_TOKEN:?Exportá BONITA_NOTIFICATION_TOKEN con el mismo valor que el backend}"
-export RESCUESYNC_BACKEND_URL BONITA_NOTIFICATION_TOKEN
+: "${BONITA_INTEGRATION_KEY:?Exportá BONITA_INTEGRATION_KEY con el mismo valor que el backend}"
+export RESCUESYNC_BACKEND_URL BONITA_INTEGRATION_KEY
 # Eclipse puede regenerar su archivo .launch y descartar variables agregadas
 # allí. JAVA_TOOL_OPTIONS sí se hereda al JVM de Tomcat que inicia Bonita.
-JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -DBONITA_NOTIFICATION_TOKEN=${BONITA_NOTIFICATION_TOKEN} -DRESCUESYNC_BACKEND_URL=${RESCUESYNC_BACKEND_URL}"
+JAVA_TOOL_OPTIONS="${JAVA_TOOL_OPTIONS:-} -DBONITA_INTEGRATION_KEY=${BONITA_INTEGRATION_KEY} -DRESCUESYNC_BACKEND_URL=${RESCUESYNC_BACKEND_URL}"
 export JAVA_TOOL_OPTIONS
 
 # Eclipse inicia Tomcat por separado. Configurar su entorno explícitamente
@@ -41,7 +41,7 @@ local $/;
 my $xml = <$in>;
 close $in;
 my $entries = '';
-for my $key (qw(BONITA_NOTIFICATION_TOKEN RESCUESYNC_BACKEND_URL)) {
+for my $key (qw(BONITA_INTEGRATION_KEY RESCUESYNC_BACKEND_URL)) {
     my $value = $ENV{$key};
     $value =~ s/&/&amp;/g;
     $value =~ s/</&lt;/g;
@@ -63,11 +63,11 @@ if ($xml =~ /<mapAttribute key="\Q$map\E">/) {
 # Bonita/Eclipse puede regenerar el mapAttribute de variables de entorno.
 # También dejamos las variables como propiedades JVM, que el conector puede
 # leer con System.getProperty y que permanecen en la configuración local.
-my $vm_token = '-DBONITA_NOTIFICATION_TOKEN=' . $ENV{BONITA_NOTIFICATION_TOKEN};
+my $vm_token = '-DBONITA_INTEGRATION_KEY=' . $ENV{BONITA_INTEGRATION_KEY};
 my $vm_backend = '-DRESCUESYNC_BACKEND_URL=' . $ENV{RESCUESYNC_BACKEND_URL};
 $xml =~ s{(<stringAttribute\s+key="org\.eclipse\.jdt\.launching\.VM_ARGUMENTS"\s+value=")([^\"]*)("/?>)}{
     my ($prefix, $args, $suffix) = ($1, $2, $3);
-    $args =~ s/(?:^|\s)-DBONITA_NOTIFICATION_TOKEN=\S+//g;
+    $args =~ s/(?:^|\s)-DBONITA_INTEGRATION_KEY=\S+//g;
     $args =~ s/(?:^|\s)-DRESCUESYNC_BACKEND_URL=\S+//g;
     $prefix . $args . ' ' . $vm_token . ' ' . $vm_backend . $suffix;
 }ex;
