@@ -13,6 +13,7 @@
     "start": "node src/index.js",
     "start:prod": "node-pg-migrate up && node scripts/seed.js && node src/index.js",
     "seed": "node scripts/seed.js",
+    "prueba:concurrencia": "node scripts/prueba-concurrencia.js",
     "test": "node --test",
     "lint": "eslint . --ext .js",
     "lint:fix": "eslint . --ext .js --fix",
