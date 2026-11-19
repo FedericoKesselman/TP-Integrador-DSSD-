@@ -120,7 +120,15 @@ function EmergencyOfertasPage() {
           {message && <Alert tone="success">{message}</Alert>}
           {STATUS_INFO[status] && <Alert tone="info">{STATUS_INFO[status]}</Alert>}
 
-          {status === 'validada' && (
+          {/* Con todo cubierto, Bonita va directo a "Adjudicar Ofertas": no hay
+              decisión que tomar ("Decidir como Continuar" no existe en el caso). */}
+          {status === 'validada' && data.todosLosLotesCubiertos === true && (
+            <Alert tone="info">
+              Las ofertas validadas cubren todos los lotes: el municipio ya puede adjudicar.
+            </Alert>
+          )}
+
+          {status === 'validada' && data.todosLosLotesCubiertos !== true && (
             <DecisionPanel
               emergencyId={id}
               todosLosLotesCubiertos={data.todosLosLotesCubiertos}
