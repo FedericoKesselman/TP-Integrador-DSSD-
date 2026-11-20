@@ -1,5 +1,6 @@
 import pool, { withTransaction } from '../db.js';
 import { changeEmergencyStatus, lockEmergency } from '../emergencies/state-machine.js';
+import { yaDecidioContinuar } from '../decisiones/decision-queries.js';
 import { createDomainError } from '../errors.js';
 import { getOfertaById } from '../ofertas/ofertas-repository.js';
 
@@ -216,6 +217,10 @@ export async function listOfertasWithValidation(emergencyId, { soloValidadas = f
     emergencyId,
     status: emergency.status,
     todosLosLotesCubiertos: resumenVigente?.todosLosLotesCubiertos ?? null,
+    // Solo tiene sentido con la emergencia validada: si ya se decidió "continuar"
+    // en esta ronda, el panel de decisión no corresponde (Bonita espera adjudicar).
+    decisionContinuarTomada:
+      emergency.status === 'validada' ? await yaDecidioContinuar(emergencyId) : false,
     lotes: lotesResult.rows.map((row) => ({
       id: row.id,
       resourceType: row.resource_type,

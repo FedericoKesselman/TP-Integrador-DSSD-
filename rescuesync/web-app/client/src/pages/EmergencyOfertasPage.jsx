@@ -128,13 +128,24 @@ function EmergencyOfertasPage() {
             </Alert>
           )}
 
-          {status === 'validada' && data.todosLosLotesCubiertos !== true && (
-            <DecisionPanel
-              emergencyId={id}
-              todosLosLotesCubiertos={data.todosLosLotesCubiertos}
-              onDone={handleDone}
-            />
-          )}
+          {/* Ya se decidió "continuar": en Bonita no queda tarea de decisión. */}
+          {status === 'validada' &&
+            data.todosLosLotesCubiertos !== true &&
+            data.decisionContinuarTomada === true && (
+              <Alert tone="info">
+                Ya decidiste continuar con las ofertas recibidas: el municipio puede adjudicar.
+              </Alert>
+            )}
+
+          {status === 'validada' &&
+            data.todosLosLotesCubiertos !== true &&
+            data.decisionContinuarTomada !== true && (
+              <DecisionPanel
+                emergencyId={id}
+                todosLosLotesCubiertos={data.todosLosLotesCubiertos}
+                onDone={handleDone}
+              />
+            )}
 
           {status === 'en_ejecucion' && (
             <EjecucionPanel emergencyId={id} ofertas={data.ofertas} onDone={handleDone} />

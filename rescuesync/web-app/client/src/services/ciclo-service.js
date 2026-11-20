@@ -9,7 +9,7 @@ export function getEmergencyDetail(emergencyId) {
   return apiRequest(`/emergencies/${emergencyId}`);
 }
 
-// GET /api/emergencies/:id/ofertas (coordinador) — { status, todosLosLotesCubiertos, lotes, ofertas }
+// GET /api/emergencies/:id/ofertas (coordinador) — { status, todosLosLotesCubiertos, decisionContinuarTomada, lotes, ofertas }
 export function getOfertasConValidacion(emergencyId) {
   return apiRequest(`/emergencies/${emergencyId}/ofertas`);
 }

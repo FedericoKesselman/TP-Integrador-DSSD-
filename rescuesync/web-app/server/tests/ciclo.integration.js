@@ -952,6 +952,7 @@ try {
   await cerrarYValidar(e2, ofertas2, 500); // la ONG A solo tiene 500 de 600 raciones
   const incompleta = await api(200, `/emergencies/${e2.id}/ofertas`, { as: COORD });
   assert.equal(incompleta.todosLosLotesCubiertos, false);
+  assert.equal(incompleta.decisionContinuarTomada, false);
   assert.equal(incompleta.lotes.find((lote) => lote.resourceCode === 'raciones').cubierta, 900);
   const decisionUrl = `/emergencies/${e2.id}/decision`;
   const decidir = (body, as = COORD) => call(decisionUrl, { method: 'POST', as, body });
@@ -987,23 +988,58 @@ try {
   bonita.failTask = null;
   bonita.setPending(e2.caseId, []);
   assert.equal((await decidir({ camino: 'continuar' })).status, 502, 'tarea no pendiente');
-  bonita.setPending(e2.caseId, ['Decidir como Continuar']);
-  assert.equal((await decidir({ camino: 'continuar' })).status, 200);
-  assert.deepEqual(bonita.executionsOf(e2.caseId, 'Decidir como Continuar').at(-1).body, {
+  // CONTINUAR bien, en una emergencia aparte: tras continuar, Bonita ya no tiene
+  // "Decidir como Continuar" y la ronda queda decidida (no se puede reabrir ni
+  // reformular sobre la misma validación). e2 sigue en `validada` para los otros caminos.
+  const e2c = await nuevaEmergenciaPublicada();
+  const ofertas2c = await crearOfertas(e2c);
+  await cerrarYValidar(e2c, ofertas2c, 500);
+  const decisionCUrl = `/emergencies/${e2c.id}/decision`;
+  const decisionesDeC = () =>
+    count(
+      "SELECT count(*) AS n FROM emergency_decisiones WHERE emergency_id = $1 AND camino = 'continuar'",
+      [e2c.id],
+    );
+  const vistaC = () => api(200, `/emergencies/${e2c.id}/ofertas`, { as: COORD });
+  assert.equal((await vistaC()).decisionContinuarTomada, false);
+  bonita.setPending(e2c.caseId, ['Decidir como Continuar']);
+  assert.equal(
+    (await call(decisionCUrl, { method: 'POST', as: COORD, body: { camino: 'continuar' } })).status,
+    200,
+  );
+  assert.deepEqual(bonita.executionsOf(e2c.caseId, 'Decidir como Continuar').at(-1).body, {
     camino: 'continuar',
   });
-  assert.equal(await statusOf(e2.id), 'validada');
-  assert.deepEqual(await ofertaStatuses(e2.id), ['validada', 'validada']);
-  assert.equal(await decisionesDe('continuar'), 1, 'solo la decisión confirmada queda registrada');
+  assert.equal(await statusOf(e2c.id), 'validada');
+  assert.deepEqual(await ofertaStatuses(e2c.id), ['validada', 'validada']);
+  assert.equal(await decisionesDeC(), 1, 'solo la decisión confirmada queda registrada');
   assert.equal(
     (
       await pool.query(
         "SELECT decided_by FROM emergency_decisiones WHERE emergency_id = $1 AND camino = 'continuar'",
-        [e2.id],
+        [e2c.id],
       )
     ).rows[0].decided_by,
     'coord',
   );
+  // Recargar: la decisión ya está tomada; cualquier decisión nueva da 409 sin tocar Bonita.
+  assert.equal((await vistaC()).decisionContinuarTomada, true);
+  const ejecucionesAntes = bonita.executionsOf(e2c.caseId, 'Decidir como Continuar').length;
+  bonita.setPending(e2c.caseId, ['Decidir como Continuar']);
+  const repetir = (body) => call(decisionCUrl, { method: 'POST', as: COORD, body });
+  assert.equal((await repetir({ camino: 'continuar' })).status, 409, 'continuar repetido');
+  assert.equal(
+    (await repetir({ camino: 'reabrir', duracionMinutos: 5 })).status,
+    409,
+    'reabrir tras continuar',
+  );
+  assert.equal(
+    bonita.executionsOf(e2c.caseId, 'Decidir como Continuar').length,
+    ejecucionesAntes,
+    'las decisiones repetidas no llegan a Bonita',
+  );
+  assert.equal(await decisionesDeC(), 1);
+  assert.equal(await statusOf(e2c.id), 'validada');
 
   // REABRIR con Bonita caído: se compensa (estado, ofertas, ronda e historial vuelven).
   const antes = (
@@ -1074,6 +1110,11 @@ try {
   assert.equal(
     (await api(200, `/emergencies/${e2.id}/ofertas`, { as: COORD })).todosLosLotesCubiertos,
     true,
+  );
+  assert.equal(
+    (await api(200, `/emergencies/${e2.id}/ofertas`, { as: COORD })).decisionContinuarTomada,
+    false,
+    'una ronda nueva de validación reabre la decisión',
   );
 
   // REFORMULAR con Bonita caído: todo vuelve atrás (transacción sin confirmar).

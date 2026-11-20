@@ -7,6 +7,7 @@ import {
   revertEmergencyStatus,
 } from '../emergencies/state-machine.js';
 import { createDomainError } from '../errors.js';
+import { yaDecidioContinuar } from './decision-queries.js';
 import { getOfertaById } from '../ofertas/ofertas-repository.js';
 
 const TASK_DECIDIR = 'Decidir como Continuar';
@@ -181,6 +182,14 @@ export async function decide({ emergencyId, camino, duracionMinutos, session, ch
   }
   if (!emergency.bonitaCaseId) {
     throw createDomainError('La emergencia no tiene caso en Bonita.', 409);
+  }
+
+  // Ya se decidió "continuar" en esta ronda: Bonita no tiene la tarea pendiente.
+  if (await yaDecidioContinuar(emergencyId)) {
+    throw createDomainError(
+      'Ya se decidió continuar con las ofertas recibidas: el municipio puede adjudicar.',
+      409,
+    );
   }
 
   const decidirInput = { [TASK_DECIDIR]: { camino } };
