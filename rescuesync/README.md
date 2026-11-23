@@ -8,7 +8,7 @@ DSSD, 2026 (Grupo 3, UNLP). El ciclo completo de una emergencia lo orquesta
 Documentación relacionada:
 
 - **[`docs/guia-de-pruebas.md`](./docs/guia-de-pruebas.md)** — casos de prueba paso a paso, con valores de ejemplo.
-- [`bonita/README.md`](./bonita/README.md) — configuración de Bonita Studio, parámetros y mapa del proceso.
+- [Repo de Bonita](https://github.com/JoaquinDiLorenzo/TrabajoIntegradorDSSD) (`app/README.md`) — proceso, parámetros y variables. El diagrama vive en ese repo, no en este.
 - [`docs/api-contracts.md`](./docs/api-contracts.md) y [`docs/api-contracts-sistema-nacional.md`](./docs/api-contracts-sistema-nacional.md) — contratos de las APIs.
 - [`roadmapfase5.md`](./roadmapfase5.md) — plan y estado de la Entrega 5.
 
@@ -107,7 +107,7 @@ Abrí http://localhost:5173. Sin el `.env`, el cliente corre en **modo mock** (g
 
 ### 4. Bonita Studio
 
-Es el paso más largo. Está explicado **en detalle** (con los valores de los parámetros) en [`bonita/README.md`](./bonita/README.md). Resumen:
+Es el paso más largo. El proceso está en el [repo de Bonita](https://github.com/JoaquinDiLorenzo/TrabajoIntegradorDSSD) (versión actual del pool: **2.11**). Pasos:
 
 1. Abrir Studio 2025.2 e importar el proyecto de Bonita desde su repo.
 2. Desplegar la organización `RescueSync.xml` (usuario por defecto `Dirección`).
@@ -172,7 +172,7 @@ cd ../ && docker compose up -d --build -V                         # reconstruye 
 docker compose exec server npm run migrate:up                    # migraciones nuevas
 ```
 
-Si cambió algún `.env.example`, copiá las variables nuevas a tu `.env`. Si cambió el proceso de Bonita, ver "Versiones del proceso" en [`bonita/README.md`](./bonita/README.md).
+Si cambió algún `.env.example`, copiá las variables nuevas a tu `.env`. Si cambió el proceso de Bonita: pull del repo de Bonita, reabrir Studio y desplegar la versión nueva del pool. Los casos viejos conservan la versión con la que arrancaron: para probar, creá una emergencia nueva.
 
 La migración de Entrega 5 (`1793000000000_e5-ciclo-completo.sql`) **borra los lotes sin `resource_code`** y devuelve a `registrada` las emergencias que se quedan sin lotes (ver [`MIGRATIONS.md`](./web-app/server/MIGRATIONS.md)).
 
@@ -232,5 +232,5 @@ docker compose down -v     # borra también los datos de Postgres (no lo uses pa
 | La emergencia se crea pero responde `bonitaWarning` | El proceso no está desplegado y activo en Bonita, o el nombre no coincide con `BONITA_PROCESS_NAME`. |
 | Mi inventario: "Tu ONG todavía no está dada de alta en el Sistema Nacional" | El `ref` de la ONG (grupo del usuario en Bonita) no existe en el SN. Crearla con `POST /ongs` (ver guía de pruebas). |
 | Primer pedido al SN muy lento o un 5xx al azar | Render estaba dormido; esperar ~1 minuto y reintentar (los conectores tienen timeouts de 90 s). |
-| En Studio, **Finish** deshabilitado en *Configure* | Falta el mapeo de actores, los parámetros o la autenticación. Ver `bonita/README.md`. |
+| En Studio, **Finish** deshabilitado en *Configure* | Falta el mapeo de actores, los parámetros o la autenticación (ver paso 4 de la instalación). |
 | Una tarea de Bonita queda en *Failed* | Portal → **Task list → Failed flow nodes**: el detalle indica qué conector falló; el log del backend (`docker compose logs server`) muestra la respuesta. |
