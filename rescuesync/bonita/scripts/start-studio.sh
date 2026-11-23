@@ -1,4 +1,7 @@
 #!/bin/sh
+# OBSOLETO (Entrega 5): ya no hace falta. Bonita recibe la clave de integración como
+# parámetro del proceso (`claveIntegracion`, ver bonita/README.md) y no como variable
+# de entorno del runtime. Se conserva solo por historia.
 set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 STUDIO_APP=${BONITA_STUDIO_APP:-/Applications/BonitaStudioCommunity-2025.2-u0.app}

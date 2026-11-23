@@ -724,6 +724,30 @@ try {
   }); // e0 sigue con la convocatoria abierta
   await internal(409, `/emergencies/${e1.id}/adjudicacion`); // todavía no eligió
 
+  // Una oferta sin nada habilitado por el SN no se puede adjudicar (hueco 3).
+  const capacidadesB = (
+    await pool.query('SELECT capacidades FROM oferta_validaciones WHERE oferta_id = $1', [
+      ofertas1.B.id,
+    ])
+  ).rows[0].capacidades;
+  await pool.query("UPDATE oferta_validaciones SET capacidades = '[]'::jsonb WHERE oferta_id = $1", [
+    ofertas1.B.id,
+  ]);
+  await api(409, adjUrl, {
+    method: 'POST',
+    as: OP,
+    body: { ofertaIds: [ofertas1.A.id, ofertas1.B.id] },
+  });
+  assert.equal(
+    await count('SELECT count(*) AS n FROM adjudicaciones WHERE emergency_id = $1', [e1.id]),
+    0,
+    'el rechazo no guarda la selección',
+  );
+  await pool.query('UPDATE oferta_validaciones SET capacidades = $2::jsonb WHERE oferta_id = $1', [
+    ofertas1.B.id,
+    JSON.stringify(capacidadesB),
+  ]);
+
   // Bonita no tiene pendiente "Adjudicar Ofertas": la selección no se guarda.
   bonita.setPending(e1.caseId, []);
   await api(502, adjUrl, {

@@ -2,6 +2,34 @@ import pool, { withTransaction } from '../db.js';
 import { changeEmergencyStatus, lockEmergency } from '../emergencies/state-machine.js';
 import { createDomainError, isUuid } from '../errors.js';
 
+// Ofertas (de `ofertaIds`) cuyo compromiso quedaría vacío. Misma regla que
+// `getAdjudicacionBody`: sin validación cuenta lo ofrecido; con validación,
+// min(ofrecido, habilitado) y un lote no habilitado vale 0.
+async function findOfertasSinCapacidad(client, ofertaIds) {
+  const items = await client.query(
+    'SELECT oferta_id, lote_id, quantity_offered FROM oferta_lotes WHERE oferta_id = ANY($1::uuid[])',
+    [ofertaIds],
+  );
+  const validaciones = await client.query(
+    'SELECT oferta_id, capacidades FROM oferta_validaciones WHERE oferta_id = ANY($1::uuid[])',
+    [ofertaIds],
+  );
+  const habilitadaByOferta = new Map(
+    validaciones.rows.map((row) => [
+      row.oferta_id,
+      new Map((row.capacidades ?? []).map((c) => [c.loteId, c.cantidadHabilitada])),
+    ]),
+  );
+  return ofertaIds.filter((ofertaId) => {
+    const habilitadas = habilitadaByOferta.get(ofertaId);
+    return !items.rows.some((row) => {
+      if (row.oferta_id !== ofertaId) return false;
+      const habilitada = habilitadas ? (habilitadas.get(row.lote_id) ?? 0) : row.quantity_offered;
+      return Math.min(row.quantity_offered, habilitada) > 0;
+    });
+  });
+}
+
 // Guarda la selección del municipio (reemplaza la anterior). Las ofertas NO
 // cambian de estado: solo pasan a adjudicada / no_seleccionada cuando el SN
 // confirma el compromiso. Devuelve la selección anterior para poder deshacer.
@@ -25,6 +53,17 @@ export async function saveSeleccion(emergencyId, ofertaIds) {
       throw createDomainError(
         'Hay ofertas que no están validadas o no pertenecen a esta emergencia.',
         400,
+      );
+    }
+
+    // Una oferta sin nada habilitado por el SN no se puede adjudicar: el compromiso
+    // saldría vacío y la tarea automática de Bonita fallaría.
+    const sinCapacidad = await findOfertasSinCapacidad(client, unique);
+    if (sinCapacidad.length > 0) {
+      throw createDomainError(
+        'Hay ofertas elegidas sin cantidades habilitadas por el Sistema Nacional; no se pueden adjudicar.',
+        409,
+        { detalle: { ofertasSinCapacidad: sinCapacidad } },
       );
     }
 
