@@ -168,7 +168,13 @@ function EmergencyAdjudicacionPage() {
     }
   }
 
-  const canSelect = emergency?.status === 'validada' && !sent;
+  // Con cobertura parcial, Bonita espera primero la decisión del coordinador
+  // ("Decidir como Continuar"): hasta que elija continuar no hay nada que adjudicar.
+  const esperandoDecision =
+    emergency?.status === 'validada' &&
+    data?.todosLosLotesCubiertos !== true &&
+    data?.decisionContinuarTomada !== true;
+  const canSelect = emergency?.status === 'validada' && !sent && !esperandoDecision;
   const conflicto = emergency?.ultimoConflictoCompromiso;
   const completa =
     cobertura.length > 0 && cobertura.every((l) => l.cubierta >= l.quantityRequested);
@@ -239,6 +245,13 @@ function EmergencyAdjudicacionPage() {
               {emergency.status === 'convocatoria_cerrada'
                 ? 'Las ofertas todavía se están validando. Volvé a esta pantalla cuando estén listas.'
                 : 'Esta emergencia no está esperando adjudicación.'}
+            </Alert>
+          )}
+          {esperandoDecision && (
+            <Alert tone="info" title="Esperando la decisión del centro coordinador">
+              Las ofertas validadas no cubren todos los lotes. El coordinador tiene que decidir si
+              continúa con estas ofertas, reabre la convocatoria o reformula los lotes. Vas a poder
+              adjudicar cuando elija continuar.
             </Alert>
           )}
           {conflicto && emergency.status === 'validada' && (
