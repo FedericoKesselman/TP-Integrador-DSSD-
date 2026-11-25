@@ -37,7 +37,7 @@ import {
   isOngRepresentative,
   isRegionalCoordinator,
 } from '../lib/auth-roles.js';
-import { listEmergencies } from '../services/emergency-service.js';
+import { listEmergencies, retryBonitaCase } from '../services/emergency-service.js';
 
 const TYPE_CONFIG = {
   inundacion: {
@@ -119,6 +119,8 @@ function EmergenciesListPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [severityFilter, setSeverityFilter] = useState('all');
+  const [retryingId, setRetryingId] = useState(null);
+  const [retryResult, setRetryResult] = useState(null);
   const navigate = useNavigate();
   const outletContext = useOutletContext();
   const user = outletContext?.user;
@@ -133,6 +135,23 @@ function EmergenciesListPage() {
       .then(setEmergencies)
       .catch((err) => setError(err.message || 'Error al cargar las emergencias.'))
       .finally(() => setLoading(false));
+  };
+
+  const handleRetryCase = async (id) => {
+    setRetryingId(id);
+    setRetryResult(null);
+    try {
+      await retryBonitaCase(id);
+      setRetryResult({ tone: 'success', message: 'El caso se inició en Bonita.' });
+      fetchList();
+    } catch (err) {
+      setRetryResult({
+        tone: 'error',
+        message: err.message || 'No se pudo reintentar el caso en Bonita.',
+      });
+    } finally {
+      setRetryingId(null);
+    }
   };
 
   useEffect(() => {
@@ -452,6 +471,12 @@ function EmergenciesListPage() {
           </div>
         )}
 
+        {retryResult && (
+          <div className="mb-6">
+            <Alert tone={retryResult.tone}>{retryResult.message}</Alert>
+          </div>
+        )}
+
         {/* ─── Loading Skeleton ─── */}
         {loading && (
           <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-white/70 p-16 text-slate-500 shadow-sm">
@@ -661,6 +686,30 @@ function EmergenciesListPage() {
                   {/* ══════════════════════════════════════════════════
                       BOTÓN DE ACCIÓN REDISEÑADO (MODERNO, CON VOLUMEN Y GRADIENTE)
                   ══════════════════════════════════════════════════ */}
+                  {!item.bonitaCaseId && (
+                    <div className="mt-6 pt-2">
+                      <Alert
+                        tone="warning"
+                        title="Sin caso en Bonita"
+                        action={
+                          canRegisterEmergency && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              icon={RefreshCw}
+                              loading={retryingId === item.id}
+                              onClick={() => handleRetryCase(item.id)}
+                            >
+                              Reintentar
+                            </Button>
+                          )
+                        }
+                      >
+                        El alta se guardó pero el proceso no arrancó.
+                      </Alert>
+                    </div>
+                  )}
                   {cicloAction && (
                     <div className="mt-6 pt-2">
                       <Link

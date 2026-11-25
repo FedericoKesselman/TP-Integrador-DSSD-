@@ -46,6 +46,7 @@ const bonita = {
   pending: new Map(),
   executions: [],
   failTask: null,
+  failStart: false,
   nextCase: 100,
   tasks: new Map(),
   setPending(caseId, names) {
@@ -61,6 +62,7 @@ const bonitaServer = await listen(({ req, url, body, reply }) => {
     return reply(200, [{ id: 'p1', deploymentDate: '2026-01-01 00:00:00.000' }]);
   }
   if (path === '/API/bpm/process/p1/instantiation') {
+    if (bonita.failStart) return reply(500, { message: 'Bonita caído' });
     bonita.nextCase += 1;
     bonita.setPending(bonita.nextCase, ['Registrar Emergencia']);
     return reply(200, { caseId: bonita.nextCase });
@@ -730,9 +732,10 @@ try {
       ofertas1.B.id,
     ])
   ).rows[0].capacidades;
-  await pool.query("UPDATE oferta_validaciones SET capacidades = '[]'::jsonb WHERE oferta_id = $1", [
-    ofertas1.B.id,
-  ]);
+  await pool.query(
+    "UPDATE oferta_validaciones SET capacidades = '[]'::jsonb WHERE oferta_id = $1",
+    [ofertas1.B.id],
+  );
   await api(409, adjUrl, {
     method: 'POST',
     as: OP,
@@ -1389,9 +1392,61 @@ try {
     sinLeer.length - 1,
   );
 
+  // Reintento del caso de Bonita (E5-25): el alta quedó sin caso porque Bonita estaba caído.
+  bonita.failStart = true;
+  const sinCaso = await api(201, '/emergencies', {
+    method: 'POST',
+    as: OP,
+    body: emergencyPayload(),
+  });
+  assert.equal(sinCaso.bonitaCaseId, null);
+  assert.ok(sinCaso.bonitaWarning);
+  const retryUrl = `/emergencies/${sinCaso.id}/bonita-caso`;
+  const caseOf = async (id) =>
+    (await pool.query('SELECT bonita_case_id FROM emergencies WHERE id = $1', [id])).rows[0]
+      .bonita_case_id;
+  await api(403, retryUrl, { method: 'POST', as: COORD });
+  await api(401, retryUrl, { method: 'POST' });
+  await api(400, '/emergencies/no-es-uuid/bonita-caso', { method: 'POST', as: OP });
+  await api(404, `/emergencies/${randomUUID()}/bonita-caso`, { method: 'POST', as: OP });
+  // Bonita sigue caído: 502 y la emergencia queda igual.
+  const failed = await api(502, retryUrl, { method: 'POST', as: OP });
+  assert.match(failed.message, /Bonita/);
+  assert.equal(await caseOf(sinCaso.id), null);
+  // Bonita vuelve: dos clics simultáneos crean un único caso y tildan la tarea una vez.
+  bonita.failStart = false;
+  const casosAntes = bonita.nextCase;
+  const [r1, r2] = await Promise.all([
+    call(retryUrl, { method: 'POST', as: OP }),
+    call(retryUrl, { method: 'POST', as: OP }),
+  ]);
+  assert.deepEqual([r1.status, r2.status], [200, 200]);
+  const reintentado = await r1.json();
+  assert.match(reintentado.bonitaCaseId, /^\d+$/);
+  assert.equal(bonita.nextCase, casosAntes + 1);
+  assert.equal(await caseOf(sinCaso.id), reintentado.bonitaCaseId);
+  assert.equal(bonita.executionsOf(reintentado.bonitaCaseId, 'Registrar Emergencia').length, 1);
+  // Ya tiene caso: no crea otro.
+  const otra = await api(200, retryUrl, { method: 'POST', as: OP });
+  assert.equal(otra.bonitaCaseId, reintentado.bonitaCaseId);
+  assert.equal(bonita.nextCase, casosAntes + 1);
+  // Caso creado pero "Registrar Emergencia" sin tildar: el reintento la completa.
+  const mediaId = (
+    await api(201, '/emergencies', { method: 'POST', as: OP, body: emergencyPayload() })
+  ).id;
+  const media = await api(200, `/emergencies/${mediaId}/bonita-caso`, { method: 'POST', as: OP });
+  assert.equal(bonita.executionsOf(media.bonitaCaseId, 'Registrar Emergencia').length, 1);
+  bonita.setPending(media.bonitaCaseId, ['Registrar Emergencia']);
+  bonita.failTask = 'Registrar Emergencia';
+  await api(502, `/emergencies/${mediaId}/bonita-caso`, { method: 'POST', as: OP });
+  bonita.failTask = null;
+  assert.equal(await caseOf(mediaId), media.bonitaCaseId);
+  await api(200, `/emergencies/${mediaId}/bonita-caso`, { method: 'POST', as: OP });
+  assert.equal(bonita.executionsOf(media.bonitaCaseId, 'Registrar Emergencia').length, 2);
+
   console.error = originalConsoleError;
   console.log(
-    'PASS: ciclo completo con Bonita y SN simulados — lotes con resourceCode, publicación con duración y compensación, whitelist e historial de estados, consolidado, validaciones (con reintento y 0 ofertas), decisión (continuar/reabrir/reformular con compensación), adjudicación, compromiso fallido y confirmado, avisos por tipo, finalización, cierre de ejecución, inventario contra el SN y permisos por rol.',
+    'PASS: ciclo completo con Bonita y SN simulados — lotes con resourceCode, publicación con duración y compensación, whitelist e historial de estados, consolidado, validaciones (con reintento y 0 ofertas), decisión (continuar/reabrir/reformular con compensación), adjudicación, compromiso fallido y confirmado, avisos por tipo, finalización, cierre de ejecución, inventario contra el SN, reintento del caso de Bonita y permisos por rol.',
   );
 } finally {
   console.error = originalConsoleError;

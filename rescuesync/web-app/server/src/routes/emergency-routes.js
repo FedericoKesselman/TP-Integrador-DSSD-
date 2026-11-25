@@ -4,12 +4,15 @@ import { restoreSeleccion, saveSeleccion } from '../adjudicaciones/adjudicacione
 import { completePendingTasks, startCase } from '../bonita/bonita-client.js';
 import { decide } from '../decisiones/decision-service.js';
 import { createDomainError, isUuid, sendError } from '../errors.js';
+import { withTransaction } from '../db.js';
 import {
   getEmergencyById,
   insertEmergency,
   listEmergencies,
+  rowToEmergency,
   setBonitaCaseId,
 } from '../emergencies/emergencies-repository.js';
+import { lockEmergency } from '../emergencies/state-machine.js';
 import {
   listLotesForEmergency,
   publishConvocatoriaForEmergency,
@@ -42,6 +45,47 @@ const COORDINATOR_TASKS = [
 // Todos los endpoints de emergencias requieren una sesión iniciada mediante Bonita.
 router.use(requireSession);
 
+// Inicia el caso de Bonita de una emergencia (si todavía no tiene), guarda su id con
+// `saveCaseId` y tilda "Registrar Emergencia" para que el caso llegue a "Revisar
+// Emergencia". Lo usan el alta y el reintento. Nunca tira: si Bonita falla devuelve
+// `warning` y la emergencia en el estado en que quedó. En el reintento (`retry`), que la
+// tarea ya no esté pendiente no es un error.
+async function openBonitaCase(session, emergency, saveCaseId, { retry = false } = {}) {
+  let current = emergency;
+  if (!current.bonitaCaseId) {
+    try {
+      const caseId = await startCase(session.bonita, { emergencyID: emergency.id });
+      current = await saveCaseId(caseId);
+    } catch (error) {
+      console.error(`Emergencia ${emergency.id} guardada, pero no se inició el caso:`, error);
+      return {
+        emergency,
+        warning: 'La emergencia se guardó, pero no se pudo iniciar el caso en Bonita.',
+      };
+    }
+  }
+
+  try {
+    const { completed } = await completePendingTasks(
+      session.bonita,
+      current.bonitaCaseId,
+      ['Registrar Emergencia'],
+      { waitForFirst: !emergency.bonitaCaseId },
+    );
+    if (completed.length === 0 && !retry) throw new Error('la tarea no estaba pendiente');
+  } catch (error) {
+    console.error(
+      `Caso ${current.bonitaCaseId} creado, pero no se completó Registrar Emergencia:`,
+      error,
+    );
+    return {
+      emergency: current,
+      warning: 'El caso se creó pero no se pudo completar Registrar Emergencia.',
+    };
+  }
+  return { emergency: current };
+}
+
 // POST /api/emergencies — alta de una emergencia por parte del Operador
 // Municipal. Corresponde a la tarea BPM "Registrar Emergencia" (ver
 // docs/api-contracts.md). El cliente ya valida antes de enviar, pero acá se
@@ -57,43 +101,36 @@ router.post('/', requireRole('operador_municipal'), async (req, res) => {
 
   try {
     const emergency = await insertEmergency(req.body, req.session.username);
-    try {
-      const caseId = await startCase(req.session.bonita, {
-        emergencyID: emergency.id,
-      });
-      const saved = await setBonitaCaseId(emergency.id, caseId);
-
-      // El alta ya es la tarea "Registrar Emergencia": se tilda para que el
-      // caso llegue a "Revisar Emergencia". Si falla, el alta no se pierde.
-      try {
-        const { completed } = await completePendingTasks(
-          req.session.bonita,
-          caseId,
-          ['Registrar Emergencia'],
-          { waitForFirst: true },
-        );
-        if (completed.length === 0) throw new Error('la tarea no estaba pendiente');
-      } catch (taskError) {
-        console.error(
-          `Caso ${caseId} creado, pero no se completó Registrar Emergencia:`,
-          taskError,
-        );
-        return res.status(201).json({
-          ...saved,
-          bonitaWarning: 'El caso se creó pero no se pudo completar Registrar Emergencia.',
-        });
-      }
-      return res.status(201).json(saved);
-    } catch (error) {
-      console.error(`Emergencia ${emergency.id} guardada, pero no se inició el caso:`, error);
-      return res.status(201).json({
-        ...emergency,
-        bonitaWarning: 'La emergencia se guardó, pero no se pudo iniciar el caso en Bonita.',
-      });
-    }
+    const { emergency: saved, warning } = await openBonitaCase(req.session, emergency, (caseId) =>
+      setBonitaCaseId(emergency.id, caseId),
+    );
+    return res.status(201).json(warning ? { ...saved, bonitaWarning: warning } : saved);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'No se pudo registrar la emergencia.' });
+  }
+});
+
+// POST /api/emergencies/:id/bonita-caso — reintenta iniciar el caso de Bonita (y tildar
+// "Registrar Emergencia") cuando el alta quedó a medias. Bloquea la fila de la emergencia
+// mientras habla con Bonita para que dos reintentos simultáneos no creen dos casos.
+router.post('/:id/bonita-caso', requireRole('operador_municipal'), async (req, res) => {
+  const { id } = req.params;
+  if (!isUuid(id)) {
+    return res.status(400).json({ message: 'El id de la emergencia no es válido.' });
+  }
+
+  try {
+    const { emergency, warning } = await withTransaction(async (client) => {
+      const locked = rowToEmergency(await lockEmergency(client, id));
+      return openBonitaCase(req.session, locked, (caseId) => setBonitaCaseId(id, caseId, client), {
+        retry: true,
+      });
+    });
+    if (warning) throw createDomainError(`${warning} Reintentá más tarde.`, 502);
+    return res.json(emergency);
+  } catch (error) {
+    return sendError(res, error, 'No se pudo reintentar el caso en Bonita.');
   }
 });
 
