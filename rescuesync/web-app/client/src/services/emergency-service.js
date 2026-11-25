@@ -96,6 +96,22 @@ export async function listEmergencies() {
   return apiRequest('/emergencies');
 }
 
+// POST /api/emergencies/:id/bonita-caso — reintenta iniciar el caso de Bonita (ver api-contracts.md)
+export async function retryBonitaCase(id) {
+  if (USE_MOCK_API) {
+    const list = readMockEmergencies();
+    const bonitaCaseId = String(Date.now());
+    localStorage.setItem(
+      MOCK_STORAGE_KEY,
+      JSON.stringify(
+        list.map((item) => (String(item.id) === String(id) ? { ...item, bonitaCaseId } : item)),
+      ),
+    );
+    return list.find((item) => String(item.id) === String(id));
+  }
+  return apiRequest(`/emergencies/${id}/bonita-caso`, { method: 'POST' });
+}
+
 // Obtener una emergencia por id (para la vista de desglose de lotes)
 export async function getEmergency(id) {
   if (USE_MOCK_API) {
