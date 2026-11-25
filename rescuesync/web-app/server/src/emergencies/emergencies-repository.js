@@ -24,7 +24,7 @@ const INSERT_COLUMNS = [
 
 // Convierte una fila de Postgres (snake_case) al objeto camelCase que
 // devuelve la API (ver docs/api-contracts.md).
-function rowToEmergency(row) {
+export function rowToEmergency(row) {
   return {
     id: row.id,
     type: row.type,
@@ -98,8 +98,8 @@ export async function listEmergencies() {
 }
 
 // Guarda el id del caso de Bonita una vez iniciado el proceso (Fase 5).
-export async function setBonitaCaseId(id, caseId) {
-  const { rows } = await pool.query(
+export async function setBonitaCaseId(id, caseId, client = pool) {
+  const { rows } = await client.query(
     'UPDATE emergencies SET bonita_case_id = $1 WHERE id = $2 RETURNING *',
     [caseId, id],
   );
