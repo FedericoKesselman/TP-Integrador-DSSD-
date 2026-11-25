@@ -33,6 +33,7 @@ function OfertaCard({
   );
   const medidas = calcularMedidas(oferta.items, habilitadaPorLote);
   const aporte = aporteNivel(medidas.aporte);
+  const sinAporte = Boolean(validacion) && medidas.aporte === 0;
   const checkboxId = `oferta-${oferta.id}`;
 
   return (
@@ -49,7 +50,7 @@ function OfertaCard({
                 id={checkboxId}
                 type="checkbox"
                 checked={selected}
-                disabled={disabled}
+                disabled={disabled || sinAporte}
                 onChange={() => onToggle(oferta.id)}
                 className="h-5 w-5 rounded border-slate-300 text-brand focus:ring-brand"
               />
@@ -57,6 +58,11 @@ function OfertaCard({
             </label>
           ) : (
             <h3 className="text-base font-bold text-ink">{ongNames(oferta)}</h3>
+          )}
+          {selectable && sinAporte && (
+            <p className="mt-0.5 text-xs font-medium text-red-700">
+              Sin stock habilitado: no se puede adjudicar.
+            </p>
           )}
           {oferta.ongs.length > 1 && (
             <p className="mt-0.5 text-xs text-ink-muted">
