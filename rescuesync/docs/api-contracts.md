@@ -550,6 +550,8 @@ retiraron**: los reemplaza `POST …/notificaciones`.
 | `GET /api/notifications`, `PATCH /api/notifications/:id/leida` | ONG | Bandeja (ver "Avisos") |
 | `GET /api/inventario`, `PUT /api/inventario` | ONG | Stock leído y actualizado en el SN (ver "Inventario") |
 
+`nivelHabilitacion` mide el respaldo de stock de la oferta (habilitado ÷ ofrecido); la web-app lo muestra como "Respaldo de stock". El "Aporte al lote" (habilitado ÷ pedido, tope 100 %) se calcula en el cliente.
+
 **Efectos de la decisión** (`POST …/decision`):
 
 - **continuar**: sin cambios en la base; solo se completa la tarea en Bonita, que sigue a "Adjudicar Ofertas".
