@@ -269,6 +269,24 @@ Lista los lotes de una emergencia (mismo shape que el array `lotes` de
 arriba). Lo usan tanto la pantalla del Coordinador como, más adelante, la
 del Sistema Nacional.
 
+### `POST /api/emergencies/:id/bonita-caso`
+
+Solo `operador_municipal`. Reintenta iniciar el caso de Bonita de una emergencia
+cuyo alta quedó a medias (`bonitaWarning` en el `201` del alta, o `bonitaCaseId`
+en `null`). Sin body. Bloquea la fila de la emergencia mientras habla con Bonita,
+así que dos reintentos simultáneos no crean dos casos. Si la emergencia no tiene
+caso lo inicia, guarda `bonitaCaseId` y completa "Registrar Emergencia"; si ya
+tiene caso nunca crea otro y solo completa "Registrar Emergencia" si sigue
+pendiente.
+
+| Respuesta | Cuándo | Body |
+|---|---|---|
+| `200 OK` | El caso quedó iniciado y "Registrar Emergencia" completada | la emergencia (mismo shape que `GET /api/emergencies/:id`) |
+| `400` | `:id` no es un UUID | `{ "message": "..." }` |
+| `403` | El rol no es `operador_municipal` | `{ "message": "..." }` |
+| `404` | La emergencia no existe | `{ "message": "Emergencia no encontrada." }` |
+| `502` | Bonita no pudo iniciar el caso o completar la tarea; se puede reintentar. Si el caso ya se había creado, `bonitaCaseId` queda guardado | `{ "message": "..." }` |
+
 ### `POST /api/emergencies/:emergencyId/convocatoria`
 
 Publica oficialmente la convocatoria: pasa `emergencies.status` de
