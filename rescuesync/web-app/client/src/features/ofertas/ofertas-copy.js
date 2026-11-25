@@ -10,13 +10,42 @@ export const TONE_CLASSES = {
 };
 
 export const NIVEL_HABILITACION = {
-  PLENO: { label: 'Cobertura plena', tone: 'green' },
-  PARCIAL: { label: 'Cobertura parcial', tone: 'amber' },
-  APOYO: { label: 'Solo apoyo', tone: 'blue' },
-  SIN_CAPACIDAD: { label: 'Sin capacidad', tone: 'red' },
+  PLENO: { label: 'Total', tone: 'green' },
+  PARCIAL: { label: 'Parcial', tone: 'amber' },
+  APOYO: { label: 'Bajo', tone: 'blue' },
+  SIN_CAPACIDAD: { label: 'Sin stock', tone: 'red' },
 };
 
-export const ROL_SUGERIDO = { principal: 'Principal', apoyo: 'Apoyo' };
+// Aporte al lote (habilitado ÷ pedido), calculado en el cliente: cuánto de lo pedido cubre la oferta.
+const EPS = 1e-9;
+export function aporteNivel(ratio) {
+  if (ratio >= 1 - EPS) return { label: 'Pleno', tone: 'green' };
+  if (ratio >= 0.5 - EPS) return { label: 'Principal', tone: 'blue' };
+  if (ratio > EPS) return { label: 'Apoyo', tone: 'amber' };
+  return { label: 'Sin aporte', tone: 'red' };
+}
+
+export const percent = (ratio) => `${Math.round(ratio * 100)} %`;
+
+const safeRatio = (num, den) => (den > 0 ? num / den : 0);
+const average = (values) =>
+  values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+
+// Fracciones 0..1 por ítem y promedio de la oferta. `habilitadaPorLote`: Map loteId -> cantidad.
+export function calcularMedidas(items, habilitadaPorLote) {
+  const filas = items.map((item) => {
+    const habilitado = habilitadaPorLote.get(item.loteId) ?? 0;
+    return {
+      respaldo: safeRatio(habilitado, item.quantityOffered),
+      aporte: safeRatio(Math.min(habilitado, item.quantityRequested), item.quantityRequested),
+    };
+  });
+  return {
+    filas,
+    respaldo: average(filas.map((f) => f.respaldo)),
+    aporte: average(filas.map((f) => f.aporte)),
+  };
+}
 
 export const RIESGO_PERMITIDO = { baja: 'Baja', media: 'Media', alta: 'Alta', critica: 'Crítica' };
 

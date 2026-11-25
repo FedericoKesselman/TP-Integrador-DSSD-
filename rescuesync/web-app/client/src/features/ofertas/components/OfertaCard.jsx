@@ -4,14 +4,16 @@ import {
   NIVEL_HABILITACION,
   OFERTA_STATUS,
   RIESGO_PERMITIDO,
-  ROL_SUGERIDO,
+  aporteNivel,
+  calcularMedidas,
   ongNames,
+  percent,
 } from '../ofertas-copy.js';
 
 import Pill from './Pill.jsx';
 
 // Una oferta con sus ONGs, lo que ofrece y el perfil que le dio el Sistema
-// Nacional (nivel de habilitación, rol sugerido, riesgo permitido, capacidad por
+// Nacional (respaldo de stock, aporte al lote, riesgo permitido, capacidad por
 // lote). Con `selectable` suma un checkbox para elegirla (adjudicación).
 function OfertaCard({
   oferta,
@@ -29,6 +31,8 @@ function OfertaCard({
       item.cantidadHabilitada,
     ]),
   );
+  const medidas = calcularMedidas(oferta.items, habilitadaPorLote);
+  const aporte = aporteNivel(medidas.aporte);
   const checkboxId = `oferta-${oferta.id}`;
 
   return (
@@ -67,12 +71,12 @@ function OfertaCard({
         {validacion ? (
           <>
             <Pill tone={nivel?.tone ?? 'slate'}>
-              {nivel?.label ?? validacion.nivelHabilitacion}
+              Respaldo de stock: {nivel?.label ?? validacion.nivelHabilitacion} (
+              {percent(medidas.respaldo)})
             </Pill>
-            <span className="text-ink-soft">
-              Rol sugerido:{' '}
-              <strong>{ROL_SUGERIDO[validacion.rolSugerido] ?? validacion.rolSugerido}</strong>
-            </span>
+            <Pill tone={aporte.tone}>
+              Aporte al lote: {aporte.label} ({percent(medidas.aporte)})
+            </Pill>
             <span className="text-ink-soft">
               Riesgo permitido hasta:{' '}
               <strong>
@@ -87,17 +91,22 @@ function OfertaCard({
       </div>
 
       <div className="mt-3 overflow-x-auto">
-        <table className="w-full min-w-[28rem] text-sm">
+        <table className="w-full min-w-[32rem] text-sm">
           <thead>
             <tr className="text-left text-xs uppercase tracking-wide text-ink-muted">
               <th className="py-1.5 pr-2 font-semibold">Recurso</th>
               <th className="px-2 py-1.5 text-right font-semibold">Pedido</th>
               <th className="px-2 py-1.5 text-right font-semibold">Ofrecido</th>
-              {validacion && <th className="py-1.5 pl-2 text-right font-semibold">Habilitado</th>}
+              {validacion && (
+                <>
+                  <th className="px-2 py-1.5 text-right font-semibold">Habilitado</th>
+                  <th className="py-1.5 pl-2 text-right font-semibold">Aporte al lote</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
-            {oferta.items.map((item) => (
+            {oferta.items.map((item, index) => (
               <tr key={item.id} className="border-t border-line">
                 <td className="py-1.5 pr-2">
                   {item.resourceType}
@@ -108,9 +117,14 @@ function OfertaCard({
                 </td>
                 <td className="px-2 py-1.5 text-right tabular-nums">{item.quantityOffered}</td>
                 {validacion && (
-                  <td className="py-1.5 pl-2 text-right font-semibold tabular-nums">
-                    {habilitadaPorLote.get(item.loteId) ?? 0}
-                  </td>
+                  <>
+                    <td className="px-2 py-1.5 text-right font-semibold tabular-nums">
+                      {habilitadaPorLote.get(item.loteId) ?? 0}
+                    </td>
+                    <td className="py-1.5 pl-2 text-right tabular-nums">
+                      {percent(medidas.filas[index].aporte)}
+                    </td>
+                  </>
                 )}
               </tr>
             ))}
