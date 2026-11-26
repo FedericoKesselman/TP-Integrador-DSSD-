@@ -668,8 +668,9 @@ finalizadas (consorcios), sus estados y sus lotes. Es el mismo criterio que `tie
   **habilitada por el SN** (`oferta_validaciones.capacidades[].cantidadHabilitada`, que es lo que
   el compromiso reserva) de las ofertas `adjudicada`/`finalizada` que cubren el lote (tope =
   pedida) / `quantity_requested`, promediada sobre esos lotes (a diferencia de
-  `suministrosPorRecurso`, no usa el `reparto` del SN: este es por recurso y no por lote). `emergencias` = cuántas emergencias aportan lotes. Sin
-  emergencias adjudicadas: `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
+  `suministrosPorRecurso`, no usa el `reparto` del SN: este es por recurso y no por lote).
+  `emergencias` = cuántas emergencias aportan lotes. Sin emergencias adjudicadas:
+  `emergencias` 0, `lotes` 0 y `promedioPorcentaje` `null`.
 - `caminosDecision`: qué pasó tras la validación (camino alternativo). Sobre las
   emergencias del período:
   - `todosCubiertos`: emergencias en `adjudicada`, `en_ejecucion` o `finalizada` cuya última

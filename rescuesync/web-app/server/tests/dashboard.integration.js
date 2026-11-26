@@ -539,6 +539,17 @@ try {
     { recursoCodigo: 'raciones', pedido: 100, movilizado: 40, porcentajeCubierto: 40 },
     { recursoCodigo: 'mantas', pedido: 50, movilizado: 50, porcentajeCubierto: 100 },
   ]);
+  // Cobertura con lo habilitado: lote de 10, la ONG ofreció 10 pero el SN habilitó 6 → 60 %.
+  const eH = await emergency('adjudicada');
+  await q("UPDATE emergencies SET created_at = '2027-04-10T12:00:00Z' WHERE id = $1", [eH]);
+  const lH = await lote(eH, 'mantas', 10);
+  await oferta(eH, 'adjudicada', [a], [[lH, 10]], [['mantas', 6]], [[lH, 6]]);
+  assert.deepEqual((await indicadores('?desde=2027-04-01&hasta=2027-04-30')).coberturaLotes, {
+    emergencias: 1,
+    lotes: 1,
+    promedioPorcentaje: 60,
+  });
+
   // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → no cuenta en cubiertos.
   assert.deepEqual((await indicadores('?desde=2026-09-01&hasta=2026-09-30')).caminosDecision, {
     todosCubiertos: 0,
