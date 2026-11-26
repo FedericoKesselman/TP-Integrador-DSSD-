@@ -9,10 +9,13 @@ import { asyncHandler, badRequest, unauthorized } from '../errors.js';
 
 const router = Router();
 
-// Freno a la fuerza bruta: 10 intentos por IP cada 15 minutos.
+// Freno a la fuerza bruta: 10 intentos fallidos por IP cada 15 minutos. Los
+// logins exitosos no cuentan: Bonita se loguea en cada tarea que habla con el SN
+// y, si contaran, un ciclo con reaperturas llegaría al límite y recibiría 429.
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  skipSuccessfulRequests: true,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { message: 'Demasiados intentos de login; esperá unos minutos.' },
