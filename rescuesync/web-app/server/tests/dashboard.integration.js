@@ -172,7 +172,8 @@ try {
   const ong = async (name) =>
     (await q('INSERT INTO ongs (name) VALUES ($1) RETURNING id', [name]))[0].id;
   // `reparto`: [[recursoCodigo, cantidad]] que comprometió el SN (puede ser menos que lo ofrecido).
-  const oferta = async (eid, status, ongs, items, reparto) => {
+  // `habilitado`: [[loteId, cantidad]] de la validación del SN; por defecto, lo ofrecido.
+  const oferta = async (eid, status, ongs, items, reparto, habilitado = items) => {
     const { id } = (
       await q('INSERT INTO ofertas (emergency_id, status) VALUES ($1, $2) RETURNING id', [
         eid,
@@ -190,6 +191,18 @@ try {
             JSON.stringify(
               reparto.map(([recursoCodigo, cantidad]) => ({ recursoCodigo, cantidad })),
             ),
+        ],
+      );
+    if (['adjudicada', 'finalizada'].includes(status))
+      await q(
+        `INSERT INTO oferta_validaciones (oferta_id, nivel_habilitacion, rol_sugerido,
+           nivel_riesgo_permitido, capacidades)
+         VALUES ($1, 'PLENO', 'principal', 'alta', $2::jsonb)`,
+        [
+          id,
+          JSON.stringify(
+            habilitado.map(([loteId, cantidadHabilitada]) => ({ loteId, cantidadHabilitada })),
+          ),
         ],
       );
     // eslint-disable-next-line no-restricted-syntax
