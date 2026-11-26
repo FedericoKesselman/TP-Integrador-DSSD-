@@ -71,14 +71,16 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
     ),
     pool.query(
       `SELECT l.id, l.emergency_id, l.resource_code, l.quantity_requested,
-              COALESCE(SUM(ol.quantity_offered) FILTER (
-                WHERE o.status IN ${OFERTAS_VIGENTES}), 0) AS movilizado
+              COALESCE((
+                SELECT SUM((c->>'cantidadHabilitada')::numeric)
+                FROM oferta_lotes ol
+                JOIN ofertas o ON o.id = ol.oferta_id AND o.status IN ${OFERTAS_VIGENTES}
+                JOIN oferta_validaciones v ON v.oferta_id = o.id
+                CROSS JOIN LATERAL jsonb_array_elements(v.capacidades) c
+                WHERE ol.lote_id = l.id AND c->>'loteId' = l.id::text), 0) AS movilizado
        FROM lotes l
-       LEFT JOIN oferta_lotes ol ON ol.lote_id = l.id
-       LEFT JOIN ofertas o ON o.id = ol.oferta_id
        JOIN emergencies e ON e.id = l.emergency_id
-       WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('l.emergency_id')}
-       GROUP BY l.id, l.emergency_id`,
+       WHERE e.status IN ${ADJUDICADAS} AND ${EN_PERIODO('l.emergency_id')}`,
       params,
     ),
     pool.query(
@@ -110,7 +112,7 @@ export async function getIndicadores({ desde = null, hasta = null } = {}) {
     });
     porEstado.set(row.status, entry);
   });
-  // Una fila por lote (sin fan-out); acá se topa lo cubierto y se agrupa por recurso.
+  // Una fila por lote, con lo habilitado por el SN (no lo ofrecido); acá se topa lo cubierto.
   const ratios = cobertura.rows.map(
     (row) => Math.min(Number(row.movilizado), row.quantity_requested) / row.quantity_requested,
   );

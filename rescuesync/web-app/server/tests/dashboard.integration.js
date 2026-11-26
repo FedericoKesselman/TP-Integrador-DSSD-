@@ -172,7 +172,8 @@ try {
   const ong = async (name) =>
     (await q('INSERT INTO ongs (name) VALUES ($1) RETURNING id', [name]))[0].id;
   // `reparto`: [[recursoCodigo, cantidad]] que comprometió el SN (puede ser menos que lo ofrecido).
-  const oferta = async (eid, status, ongs, items, reparto) => {
+  // `habilitado`: [[loteId, cantidad]] de la validación del SN; por defecto, lo ofrecido.
+  const oferta = async (eid, status, ongs, items, reparto, habilitado = items) => {
     const { id } = (
       await q('INSERT INTO ofertas (emergency_id, status) VALUES ($1, $2) RETURNING id', [
         eid,
@@ -190,6 +191,18 @@ try {
             JSON.stringify(
               reparto.map(([recursoCodigo, cantidad]) => ({ recursoCodigo, cantidad })),
             ),
+        ],
+      );
+    if (['adjudicada', 'finalizada'].includes(status))
+      await q(
+        `INSERT INTO oferta_validaciones (oferta_id, nivel_habilitacion, rol_sugerido,
+           nivel_riesgo_permitido, capacidades)
+         VALUES ($1, 'PLENO', 'principal', 'alta', $2::jsonb)`,
+        [
+          id,
+          JSON.stringify(
+            habilitado.map(([loteId, cantidadHabilitada]) => ({ loteId, cantidadHabilitada })),
+          ),
         ],
       );
     // eslint-disable-next-line no-restricted-syntax
@@ -526,6 +539,17 @@ try {
     { recursoCodigo: 'raciones', pedido: 100, movilizado: 40, porcentajeCubierto: 40 },
     { recursoCodigo: 'mantas', pedido: 50, movilizado: 50, porcentajeCubierto: 100 },
   ]);
+  // Cobertura con lo habilitado: lote de 10, la ONG ofreció 10 pero el SN habilitó 6 → 60 %.
+  const eH = await emergency('adjudicada');
+  await q("UPDATE emergencies SET created_at = '2027-04-10T12:00:00Z' WHERE id = $1", [eH]);
+  const lH = await lote(eH, 'mantas', 10);
+  await oferta(eH, 'adjudicada', [a], [[lH, 10]], [['mantas', 6]], [[lH, 6]]);
+  assert.deepEqual((await indicadores('?desde=2027-04-01&hasta=2027-04-30')).coberturaLotes, {
+    emergencias: 1,
+    lotes: 1,
+    promedioPorcentaje: 60,
+  });
+
   // El reabrir de E1 solo se ve en su período; E1 no tiene resumen → no cuenta en cubiertos.
   assert.deepEqual((await indicadores('?desde=2026-09-01&hasta=2026-09-30')).caminosDecision, {
     todosCubiertos: 0,
